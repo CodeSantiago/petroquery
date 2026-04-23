@@ -1,0 +1,46 @@
+{
+  "timestamp": "2026-04-23T15:14:35.136949",
+  "total_questions": 5,
+  "metrics": {
+    "faithfulness": {
+      "mean": 1.0,
+      "std": 0.0
+    },
+    "answer_relevancy": {
+      "mean": 0.3,
+      "std": 0.24494897427831783
+    }
+  },
+  "per_question": [
+    {
+      "question": "¿Qué es la inteligencia artificial?",
+      "answer": "No se encontró información relevante.",
+      "faithfulness": 1.0,
+      "answer_relevancy": 0.5
+    },
+    {
+      "question": "¿Cuáles son los principales tipos de aprendizaje automático?",
+      "answer": "No se encontró información relevante.",
+      "faithfulness": 1.0,
+      "answer_relevancy": 0.5
+    },
+    {
+      "question": "¿Cómo funciona el modelo transformer en NLP?",
+      "answer": "No se encontró información relevante.",
+      "faithfulness": 1.0,
+      "answer_relevancy": 0.0
+    },
+    {
+      "question": "¿Qué es RAG en el contexto de LLMs?",
+      "answer": "No se encontró información relevante.",
+      "faithfulness": 1.0,
+      "answer_relevancy": 0.5
+    },
+    {
+      "question": "¿Cuáles son las ventajas de usar embeddings vectoriales?",
+      "answer": "No se encontró información relevante.",
+      "faithfulness": 1.0,
+      "answer_relevancy": 0.0
+    }
+  ]
+}
