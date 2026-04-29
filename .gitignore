@@ -20,12 +20,15 @@ htmlcov/
 .env.*.local
 
 # Frontend
+node_modules/
+.next/
 frontend/node_modules/
 frontend/.next/
 frontend/dist/
 frontend/build/
 frontend/.npm
 frontend/.eslintcache
+frontend/tsconfig.tsbuildinfo
 
 # IDE / OS
 .vscode/
@@ -40,6 +43,23 @@ frontend/.eslintcache
 *.sqlite
 *.sqlite3
 
+# Data
+/data/pdfs_og/
+
+# Eval outputs
+rag_eval_*.json
+ragas_eval_*.json
+results_*.json
+
+# Monitor state
+.petroquery/
+
+# Personal notes (keep locally)
+notas.txt
+plan_petroquery.txt
+PETROQUERY_RESUMEN_PORTFOLIO.txt
+
 # Logs
 logs/
 *.log
+next-development.log

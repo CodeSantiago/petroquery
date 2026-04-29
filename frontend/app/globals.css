@@ -1,158 +1,95 @@
-@import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --cursor-size: 20px;
+  --color-bg: 250 250 250;
+  --color-surface: 255 255 255;
+  --color-border: 230 230 235;
+  --color-text: 30 30 35;
+  --color-text-muted: 100 100 110;
+  --color-accent: 220 220 230;
+  --color-accent-hover: 200 200 210;
+  --color-primary: 35 35 45;
 }
 
 * {
-  border-color: hsl(220 10% 90%);
+  border-color: rgb(var(--color-border));
 }
 
 body {
-  background-color: hsl(40 20% 98%);
-  color: hsl(25 10% 35%);
-  font-family: 'Quicksand', 'Outfit', system-ui, sans-serif;
-  cursor: none;
+  background-color: rgb(var(--color-bg));
+  color: rgb(var(--color-text));
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
 }
 
-/* Custom cursor */
-.cursor {
-  position: fixed;
-  width: var(--cursor-size);
-  height: var(--cursor-size);
-  border-radius: 50%;
-  background: hsl(25 80% 65% / 0.3);
-  border: 2px solid hsl(25 80% 65%);
-  pointer-events: none;
-  z-index: 9999;
-  will-change: transform;
-}
-
-.will-change-transform {
-  will-change: transform;
-}
-
-.cursor.hover {
-  transform: scale(1.5);
-  background: hsl(35 80% 70% / 0.5);
-}
-
-.cursor.hover-secondary {
-  transform: scale(1.8);
-  background: hsl(45 80% 75% / 0.5);
-}
-
-/* Glass morphism */
 @layer utilities {
   .glass {
-    background: hsla(0 0% 100% / 0.6);
-    border: 1px solid hsla(0 0% 100% / 0.5);
-    box-shadow: 
-      0 8px 32px hsla(220 10% 10% / 0.08),
-      inset 0 1px 0 hsla(0 0% 100% / 0.5);
+    background: rgb(var(--color-surface));
+    border: 1px solid rgb(var(--color-border));
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
   }
   
   .glass-card {
-    background: hsla(0 0% 100% / 0.5);
-    border: 1px solid hsla(0 0% 100% / 0.4);
-    box-shadow: 
-      0 4px 24px hsla(220 10% 10% / 0.06),
-      inset 0 1px 0 hsla(0 0% 100% / 0.3);
+    background: rgb(var(--color-surface));
+    border: 1px solid rgb(var(--color-border));
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
   }
 
   .mesh-gradient {
     background: 
-      radial-gradient(at 40% 20%, hsla(35,80%,75%,0.4) 0px, transparent 50%),
-      radial-gradient(at 80% 0%, hsla(25,80%,70%,0.3) 0px, transparent 50%),
-      radial-gradient(at 0% 50%, hsla(45,80%,75%,0.3) 0px, transparent 50%),
-      radial-gradient(at 80% 50%, hsla(35,80%,75%,0.2) 0px, transparent 50%),
-      radial-gradient(at 0% 100%, hsla(25,80%,70%,0.3) 0px, transparent 50%);
+      radial-gradient(at 50% 50%, rgba(200, 200, 210, 0.15) 0px, transparent 60%);
+  }
+  
+  .btn-primary {
+    background: rgb(var(--color-primary));
+    color: white;
+    transition: all 0.2s ease;
+  }
+  
+  .btn-primary:hover {
+    background: rgb(20 20 25);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   }
 
-  .mesh-gradient-simple {
-    background: linear-gradient(135deg, hsl(35 50% 95%), hsl(25 50% 95%), hsl(45 50% 95%));
-  }
-  
-  .btn-gradient {
-    background: linear-gradient(135deg, hsl(25 80% 55%), hsl(35 80% 60%));
-    transition: all 0.3s ease;
-  }
-  
-  .btn-gradient:hover {
-    background: linear-gradient(135deg, hsl(25 80% 45%), hsl(35 80% 50%));
-    box-shadow: 0 8px 24px hsla(25 80% 55% / 0.4);
-    transform: translateY(-2px);
+  .btn-primary:active {
+    transform: translateY(0);
   }
 
-  .btn-gradient-secondary {
-    background: linear-gradient(135deg, hsl(45 80% 65%), hsl(25 80% 55%));
-    transition: all 0.3s ease;
+  .btn-secondary {
+    background: rgb(var(--color-surface));
+    border: 1px solid rgb(var(--color-border));
+    color: rgb(var(--color-text));
+    transition: all 0.2s ease;
   }
   
-  .btn-gradient-secondary:hover {
-    background: linear-gradient(135deg, hsl(45 80% 55%), hsl(25 80% 45%));
-    box-shadow: 0 8px 24px hsla(45 80% 65% / 0.4);
-    transform: translateY(-2px);
+  .btn-secondary:hover {
+    background: rgb(var(--color-accent));
+    border-color: rgb(var(--color-accent));
+  }
+
+  .input-field {
+    background: rgb(var(--color-surface));
+    border: 1px solid rgb(var(--color-border));
+    color: rgb(var(--color-text));
+    transition: all 0.2s ease;
   }
   
-  .shine-effect {
-    position: relative;
-    overflow: hidden;
+  .input-field:focus {
+    outline: none;
+    border-color: rgb(var(--color-primary));
+    box-shadow: 0 0 0 3px rgba(35, 35, 45, 0.08);
   }
   
-  .shine-effect::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(
-      90deg,
-      transparent,
-      hsla(0 0% 100% / 0.4),
-      transparent
-    );
-    animation: shine 3s ease-in-out infinite;
+  .input-field::placeholder {
+    color: rgb(var(--color-text-muted));
   }
 }
 
-@keyframes mesh-move {
-  0%, 100% { background-position: 0% 0%; }
-  50% { background-position: 100% 100%; }
-}
-
-@keyframes mesh-move-simple {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-
-/* Confetti animation */
-.confetti-piece {
-  position: absolute;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  animation: confetti-fall 1s ease-out forwards;
-}
-
-@keyframes confetti-fall {
-  0% {
-    transform: translateY(0) rotate(0deg);
-    opacity: 1;
-  }
-  100% {
-    transform: translateY(100px) rotate(720deg);
-    opacity: 0;
-  }
-}
-
-/* Scrollbar styling */
+/* Scrollbar minimal */
 ::-webkit-scrollbar {
   width: 6px;
 }
@@ -162,23 +99,16 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: hsl(220 10% 85%);
+  background: rgb(var(--color-border));
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: hsl(220 10% 75%);
+  background: rgb(var(--color-accent-hover));
 }
 
-/* Hide default cursor globally */
-body {
-  cursor: none;
-}
-
-a, button, input, textarea, [role="button"] {
-  cursor: none;
-}
-
-a:hover, button:hover, input:hover, textarea:hover, [role="button"]:hover {
-  cursor: none;
+/* Selection */
+::selection {
+  background: rgb(var(--color-primary));
+  color: white;
 }

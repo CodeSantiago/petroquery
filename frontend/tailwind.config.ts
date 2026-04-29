@@ -38,6 +38,12 @@ const config: Config = {
           foreground: "hsl(220 10% 55%)",
         },
         border: "hsl(220 10% 90%)",
+        'petro-blue': '#1A237E',
+        'petro-orange': '#FF6F00',
+        'petro-gray': '#F5F5F5',
+        'petro-lime': '#C0CA33',
+        'petro-dark': '#0D47A1',
+        'petro-light': '#E8EAF6',
       },
       backgroundImage: {
         "mesh-gradient": `radial-gradient(at 40% 20%, hsla(270,70%,75%,0.3) 0px, transparent 50%),

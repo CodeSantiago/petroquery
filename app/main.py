@@ -7,12 +7,14 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import Base, engine, get_db
-from app.models import Chat, Document, Message, User
-from app.schemas import DocumentCreate, DocumentResponse
+from app.models import Document, Message, User
+from app.schemas import DocumentResponse
 from app.api.v1.chat import router as chat_router, messages_router as messages_router
 from app.api.v1.ingest import router as ingest_router
 from app.api.v1.auth import router as auth_router, get_current_user
 from app.api.v1.admin import router as admin_router
+from app.api.v1.audits import router as audits_router
+from app.api.v1.projects import router as projects_router
 from app.services.ai_service import AIService, get_ai_service
 
 
@@ -25,15 +27,20 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     ai_service = get_ai_service()
     await ai_service.get_embedding("warmup")
 
-    print("✅ Startup complete")
+    print("✅ PetroQuery startup complete")
 
     yield
 
     await engine.dispose()
-    print("✅ Shutdown complete")
+    print("✅ PetroQuery shutdown complete")
 
 
-app = FastAPI(title="Brain-API", version="1.0.0", lifespan=lifespan)
+app = FastAPI(
+    title="PetroQuery",
+    description="RAG Industrial para Oil & Gas — Especializado en operaciones de Vaca Muerta, Argentina",
+    version="2.0.0",
+    lifespan=lifespan,
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -48,11 +55,13 @@ app.include_router(messages_router, prefix="/api/v1")
 app.include_router(ingest_router, prefix="/api/v1")
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(admin_router, prefix="/api/v1")
+app.include_router(audits_router, prefix="/api/v1")
+app.include_router(projects_router, prefix="/api/v1")
 
 
 @app.get("/health", status_code=status.HTTP_200_OK)
 async def health_check() -> dict[str, str]:
-    return {"status": "healthy"}
+    return {"status": "healthy", "system": "PetroQuery"}
 
 
 @app.delete("/documents/clear", status_code=status.HTTP_200_OK)
@@ -68,71 +77,6 @@ async def clear_documents(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to clear documents: {str(e)}"
-        )
-
-
-@app.post("/ingest", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)
-async def ingest_document(
-    document_data: DocumentCreate,
-    db: Annotated[AsyncSession, Depends(get_db)],
-    ai_service: Annotated[AIService, Depends(get_ai_service)],
-    current_user: Annotated[User, Depends(get_current_user)],
-) -> DocumentResponse:
-    from app.api.v1.ingest import split_into_chunks
-    
-    # Crear un nuevo chat para este documento
-    chat = Chat(user_id=current_user.id, title=document_data.title)
-    db.add(chat)
-    await db.flush()
-    
-    try:
-        chunks = split_into_chunks(document_data.content, chunk_size=1000, overlap=200)
-        
-        if not chunks:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No content to ingest"
-            )
-        
-        first_chunk = chunks[0]
-        embedding = await ai_service.get_embedding(first_chunk)
-        
-        print(f"Embedding generated: {embedding[:5]}...")
-        
-        document = Document(
-            user_id=current_user.id,
-            chat_id=chat.id,
-            title=document_data.title,
-            content=first_chunk,
-            extra_data={**document_data.metadata, "total_chunks": len(chunks)},
-            embedding=embedding,
-        )
-        
-        db.add(document)
-        
-        for i, chunk in enumerate(chunks[1:], start=1):
-            chunk_embedding = await ai_service.get_embedding(chunk)
-            chunk_doc = Document(
-                user_id=current_user.id,
-                chat_id=chat.id,
-                title=document_data.title,
-                content=chunk,
-                extra_data={**document_data.metadata, "chunk_number": i + 1, "total_chunks": len(chunks)},
-                embedding=chunk_embedding,
-            )
-            db.add(chunk_doc)
-        
-        await db.commit()
-        await db.refresh(document)
-        
-        return DocumentResponse.model_validate(document)
-    except HTTPException:
-        raise
-    except Exception as e:
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create document: {str(e)}"
         )
 
 

@@ -1,5 +1,7 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+import { OGTechnicalAnswer, FilterParams, Chat, Message } from "@/lib/types";
+
 export interface User {
   id: number;
   email: string;
@@ -80,12 +82,12 @@ export async function login(username: string, password: string): Promise<Token> 
     method: "POST",
     body: formData,
   });
-  
+
   if (!res.ok) {
     const error = await res.text();
     throw new Error(`Login failed: ${error}`);
   }
-  
+
   const token: Token = await res.json();
   setAuthToken(token.access_token);
   return token;
@@ -102,12 +104,12 @@ export async function register(data: {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
-  
+
   if (!res.ok) {
     const error = await res.text();
     throw new Error(`Registration failed: ${error}`);
   }
-  
+
   return res.json();
 }
 
@@ -118,12 +120,12 @@ export async function getCurrentUser(): Promise<User> {
   const res = await fetch(`${API_BASE}/api/v1/auth/me`, {
     headers: { "Authorization": `Bearer ${token}` },
   });
-  
+
   if (!res.ok) {
     setAuthToken(null);
     throw new Error("Failed to get user");
   }
-  
+
   return res.json();
 }
 
@@ -132,8 +134,8 @@ export function logout(): void {
 }
 
 export async function fetchDocuments(): Promise<Document[]> {
-  const res = await fetch(`${API_BASE}/documents`, { 
-    cache: "no-store" 
+  const res = await fetch(`${API_BASE}/documents`, {
+    cache: "no-store",
   });
   if (!res.ok) throw new Error("Failed to fetch documents");
   return res.json();
@@ -159,14 +161,26 @@ export async function createDocument(data: {
   return res.json();
 }
 
-export async function askQuestion(question: string, chatId?: number): Promise<AnswerResponse> {
+export async function askQuestion(
+  question: string,
+  chatId?: number,
+  filters?: FilterParams,
+  projectId?: number
+): Promise<OGTechnicalAnswer> {
   const token = getAuthToken();
-  const body: { question: string; chat_id?: number } = { question };
+  const body: {
+    question: string;
+    chat_id?: number;
+    project_id?: number;
+    filters?: FilterParams;
+  } = { question };
   if (chatId) body.chat_id = chatId;
-  
+  if (projectId) body.project_id = projectId;
+  if (filters && Object.keys(filters).length > 0) body.filters = filters;
+
   const res = await fetch(`${API_BASE}/api/v1/ask`, {
     method: "POST",
-    headers: { 
+    headers: {
       "Content-Type": "application/json",
       ...(token ? { "Authorization": `Bearer ${token}` } : {}),
     },
@@ -179,7 +193,94 @@ export async function askQuestion(question: string, chatId?: number): Promise<An
   return res.json();
 }
 
-export async function ingestPdf(file: File, title: string): Promise<{
+export async function uploadPDF(
+  file: File,
+  projectId: number,
+  metadata?: {
+    cuenca?: string;
+    tipo_equipo?: string;
+    normativa_aplicable?: string;
+    tipo_documento?: string;
+    pozo_referencia?: string;
+  }
+): Promise<{ status: string; document_id: number | string; chat_id?: number }> {
+  const token = getAuthToken();
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("project_id", String(projectId));
+  if (metadata) {
+    formData.append("og_metadata", JSON.stringify(metadata));
+  }
+
+  const res = await fetch(`${API_BASE}/api/v1/ingest/pdf`, {
+    method: "POST",
+    headers: token ? { "Authorization": `Bearer ${token}` } : {},
+    body: formData,
+  });
+  if (!res.ok) {
+    const error = await res.text();
+    throw new Error(`Failed to ingest PDF: ${error}`);
+  }
+  return res.json();
+}
+
+export async function getUploadStatus(
+  documentId: number | string
+): Promise<{ status: string; progress: number; title?: string; insights?: { summary?: string; sections?: string[]; questions?: string[] } | null }> {
+  const token = getAuthToken();
+  const res = await fetch(`${API_BASE}/api/v1/ingest/status/${documentId}`, {
+    headers: token ? { "Authorization": `Bearer ${token}` } : {},
+  });
+  if (!res.ok) throw new Error("Failed to get upload status");
+  return res.json();
+}
+
+export async function listChats(): Promise<Chat[]> {
+  const token = getAuthToken();
+  const res = await fetch(`${API_BASE}/api/v1/chats`, {
+    cache: "no-store",
+    headers: token ? { "Authorization": `Bearer ${token}` } : {},
+  });
+  if (!res.ok) throw new Error("Failed to list chats");
+  return res.json();
+}
+
+export async function getChatMessages(chatId: number): Promise<Message[]> {
+  const token = getAuthToken();
+  const res = await fetch(`${API_BASE}/api/v1/chats/${chatId}/messages`, {
+    cache: "no-store",
+    headers: token ? { "Authorization": `Bearer ${token}` } : {},
+  });
+  if (!res.ok) throw new Error("Failed to fetch chat messages");
+  return res.json();
+}
+
+export async function deleteChat(chatId: number): Promise<void> {
+  const token = getAuthToken();
+  const res = await fetch(`${API_BASE}/api/v1/chats/${chatId}`, {
+    method: "DELETE",
+    headers: token ? { "Authorization": `Bearer ${token}` } : {},
+  });
+  if (!res.ok) throw new Error("Failed to delete chat");
+}
+
+export async function renameChat(chatId: number, title: string): Promise<void> {
+  const token = getAuthToken();
+  const res = await fetch(`${API_BASE}/api/v1/chats/${chatId}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ title }),
+  });
+  if (!res.ok) throw new Error("Failed to rename chat");
+}
+
+export async function ingestPdf(
+  file: File,
+  title: string
+): Promise<{
   message: string;
   filename: string;
   chunks_created: number;
@@ -204,7 +305,7 @@ export async function ingestPdf(file: File, title: string): Promise<{
 
 export async function fetchIngestedDocuments(): Promise<IngestedDocument[]> {
   const token = getAuthToken();
-  const res = await fetch(`${API_BASE}/api/v1/ingest/documents`, { 
+  const res = await fetch(`${API_BASE}/api/v1/ingest/documents`, {
     cache: "no-store",
     headers: token ? { "Authorization": `Bearer ${token}` } : {},
   });
@@ -212,23 +313,13 @@ export async function fetchIngestedDocuments(): Promise<IngestedDocument[]> {
   return res.json();
 }
 
-export async function fetchChatMessages(chatId: number): Promise<ChatMessage[]> {
+export async function fetchChatMessagesLegacy(chatId: number): Promise<ChatMessage[]> {
   const token = getAuthToken();
   const res = await fetch(`${API_BASE}/api/v1/chats/${chatId}/messages`, {
     cache: "no-store",
     headers: token ? { "Authorization": `Bearer ${token}` } : {},
   });
   if (!res.ok) throw new Error("Failed to fetch chat messages");
-  return res.json();
-}
-
-export async function deleteChat(chatId: number): Promise<{ message: string }> {
-  const token = getAuthToken();
-  const res = await fetch(`${API_BASE}/api/v1/chats/${chatId}`, {
-    method: "DELETE",
-    headers: token ? { "Authorization": `Bearer ${token}` } : {},
-  });
-  if (!res.ok) throw new Error("Failed to delete chat");
   return res.json();
 }
 
@@ -249,5 +340,31 @@ export async function deleteChatDocuments(chatId: number): Promise<{ message: st
     headers: token ? { "Authorization": `Bearer ${token}` } : {},
   });
   if (!res.ok) throw new Error("Failed to delete documents");
+  return res.json();
+}
+
+export async function inviteUser(data: {
+  email: string;
+  username: string;
+  role: string;
+  project_id: number;
+}): Promise<User> {
+  const token = getAuthToken();
+  if (!token) throw new Error("Not authenticated");
+
+  const res = await fetch(`${API_BASE}/api/v1/admin/invite`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`,
+    },
+    body: JSON.stringify(data),
+  });
+
+  if (!res.ok) {
+    const error = await res.text();
+    throw new Error(`Invite failed: ${error}`);
+  }
+
   return res.json();
 }

@@ -8,7 +8,7 @@ services:
     environment:
       POSTGRES_USER: santiago
       POSTGRES_PASSWORD: password123
-      POSTGRES_DB: brain_db
+      POSTGRES_DB: petroquery_db
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
