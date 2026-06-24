@@ -134,30 +134,21 @@ export function logout(): void {
 }
 
 export async function fetchDocuments(): Promise<Document[]> {
+  const token = getAuthToken();
   const res = await fetch(`${API_BASE}/documents`, {
     cache: "no-store",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
   if (!res.ok) throw new Error("Failed to fetch documents");
   return res.json();
 }
 
 export async function getDocument(id: number): Promise<Document> {
-  const res = await fetch(`${API_BASE}/documents/${id}`);
-  if (!res.ok) throw new Error("Failed to fetch document");
-  return res.json();
-}
-
-export async function createDocument(data: {
-  title: string;
-  content: string;
-  metadata: Record<string, unknown>;
-}): Promise<Document> {
-  const res = await fetch(`${API_BASE}/ingest`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
+  const token = getAuthToken();
+  const res = await fetch(`${API_BASE}/documents/${id}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
-  if (!res.ok) throw new Error("Failed to create document");
+  if (!res.ok) throw new Error("Failed to fetch document");
   return res.json();
 }
 
@@ -275,32 +266,6 @@ export async function renameChat(chatId: number, title: string): Promise<void> {
     body: JSON.stringify({ title }),
   });
   if (!res.ok) throw new Error("Failed to rename chat");
-}
-
-export async function ingestPdf(
-  file: File,
-  title: string
-): Promise<{
-  message: string;
-  filename: string;
-  chunks_created: number;
-  total_text_length: number;
-}> {
-  const token = getAuthToken();
-  const formData = new FormData();
-  formData.append("file", file);
-  formData.append("title", title);
-
-  const res = await fetch(`${API_BASE}/api/v1/ingest/pdf`, {
-    method: "POST",
-    headers: token ? { "Authorization": `Bearer ${token}` } : {},
-    body: formData,
-  });
-  if (!res.ok) {
-    const error = await res.text();
-    throw new Error(`Failed to ingest PDF: ${error}`);
-  }
-  return res.json();
 }
 
 export async function fetchIngestedDocuments(): Promise<IngestedDocument[]> {

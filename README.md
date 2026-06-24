@@ -39,6 +39,10 @@ graph LR
 ## Quick Start
 
 ```bash
+# 0. Copiá `.env.example` a `.env` y configurá tus secretos (SECRET_KEY,
+#    GROQ_API_KEY, DATABASE_URL). La aplicación rechaza iniciar en
+#    producción con los placeholders de `.env.example`.
+cp .env.example .env
 docker compose up -d
 python scripts/init_petroquery_db.py
 uvicorn app.main:app --reload
@@ -58,7 +62,8 @@ pip install -r requirements.txt
 
 # 3. Variables de entorno
 cp .env.example .env
-# Editar .env con GROQ_API_KEY, DATABASE_URL, etc.
+# Editar .env con GROQ_API_KEY, DATABASE_URL, SECRET_KEY, etc.
+#   SECRET_KEY: genera uno con `python -c "import secrets; print(secrets.token_urlsafe(48))"`
 
 # 4. Inicializar base de datos
 python scripts/init_petroquery_db.py
@@ -66,6 +71,12 @@ python scripts/init_petroquery_db.py
 # 5. Levantar API
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
+
+> **Importante sobre secretos**: en producción (`APP_ENV=production`) la
+> aplicación rechaza iniciar si `SECRET_KEY`, `DATABASE_URL` o
+> `CORS_ALLOWED_ORIGINS` están vacíos o usan los placeholders inseguros
+> del `.env.example`. En desarrollo se genera una `SECRET_KEY` efímera
+> por proceso y se imprime una advertencia.
 
 La documentación interactiva de la API está disponible en:
 - **Swagger UI**: http://localhost:8000/docs
@@ -95,16 +106,37 @@ petroquery/
 │   ├── prompts/             # System prompts especializados O&G
 │   └── schemas/             # Pydantic schemas (OGTechnicalAnswer)
 ├── eval/
-│   └── og_eval_dataset.json # Dataset de evaluación técnica (25 preguntas)
+│   └── og_eval_dataset.json # Dataset de evaluación técnica (5 preguntas base)
 ├── scripts/
 │   ├── evaluate_petroquery.py   # Script de evaluación completo
 │   └── init_petroquery_db.py    # Inicialización de DB
+├── tests/                   # Suite pytest (config, auth, services, ...)
 ├── docs/
 │   ├── ARCHITECTURE.md      # Deep dive de arquitectura
 │   └── OG_SPECIALIZATION.md # Adaptación de RAG genérico a O&G
+├── .env.example             # Plantilla de variables de entorno
 ├── docker-compose.yml
-└── requirements.txt
+├── Makefile                 # Atajos de developer experience
+├── pytest.ini               # Configuración de pytest
+├── requirements.txt
+└── requirements-dev.txt     # Dependencias solo para desarrollo / tests
 ```
+
+## 🧪 Tests
+
+```bash
+# Suite completa (config, auth, hybrid search, number validator, PII masker, etc.)
+make test
+
+# O directamente:
+venv/bin/pytest tests/
+```
+
+Los tests cubren las costuras críticas de seguridad y correctitud:
+gestión del `SECRET_KEY`, parsing de CORS, validador de números
+técnicos (con casos de regresión sobre substrings), enmascarado de PII
+con preservación de nombres propios O&G, scoring RRF, y guards de
+prompt injection.
 
 ## Roadmap
 

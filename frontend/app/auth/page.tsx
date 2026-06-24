@@ -22,8 +22,12 @@ function AuthContent() {
     try {
       await login(username, password);
       const user = await getCurrentUser();
-      if (user.role === "operator") {
-        router.push("/projects");
+      // Admins land on the admin dashboard, everyone else on the projects
+      // workspace. The original if/else collapsed both branches to the
+      // same target which was a clear bug; keep this explicit so the
+      // intent is obvious in the diff.
+      if (user.role === "admin") {
+        router.push("/admin");
       } else {
         router.push("/projects");
       }

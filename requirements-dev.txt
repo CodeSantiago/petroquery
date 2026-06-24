@@ -1,0 +1,10 @@
+# ============================================================================
+# PetroQuery — development-only dependencies
+# ============================================================================
+# Install alongside the main requirements with:
+#   pip install -r requirements.txt -r requirements-dev.txt
+# ============================================================================
+
+# Test runner
+pytest==9.1.1
+pytest-asyncio==1.4.0
