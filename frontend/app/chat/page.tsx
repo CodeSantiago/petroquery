@@ -56,6 +56,15 @@ interface UploadTask {
   } | null;
 }
 
+// Module-level registry of in-flight upload pollers, keyed by document id.
+// We keep it outside the component so a re-render never creates a fresh
+// map. The cleanup callback stored in each entry cancels the underlying
+// setTimeout chain on unmount or navigation.
+const pendingUploadPolls = new Map<
+  number | string,
+  () => void
+>();
+
 interface Project {
   id: number;
   name: string;
@@ -209,6 +218,18 @@ export default function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // Cancel any in-flight upload pollers when the chat page unmounts.
+  // Without this, navigating away from the page mid-upload leaks a
+  // setTimeout chain that keeps mutating state on an unmounted component.
+  useEffect(() => {
+    return () => {
+      for (const cancel of pendingUploadPolls.values()) {
+        cancel();
+      }
+      pendingUploadPolls.clear();
+    };
+  }, []);
+
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
@@ -357,8 +378,19 @@ export default function ChatPage() {
 
         setUploadTasks((prev) => [...prev, newTask]);
 
-        if (result.status !== "completado") {
-          const interval = setInterval(async () => {
+        if (result.status !== "completed" && result.status !== "completado") {
+          // Polling loop with capped retries, exponential backoff, and
+          // proper cleanup so we never leak intervals or hammer the API
+          // on a stuck upload.
+          const POLL_INTERVAL_MS = 2000;
+          const MAX_INTERVAL_MS = 15000;
+          const MAX_ATTEMPTS = 30; // ~5 min worst case
+          let attempt = 0;
+          let cancelled = false;
+
+          const tick = async () => {
+            if (cancelled) return;
+            attempt += 1;
             try {
               const status = await getUploadStatus(result.document_id);
               setUploadTasks((prev) =>
@@ -378,17 +410,11 @@ export default function ChatPage() {
                     : t
                 )
               );
-              if (
-                status.status === "completed" ||
-                status.status === "failed"
-              ) {
-                clearInterval(interval);
-                // Store insights persistently when upload completes
+              if (status.status === "completed" || status.status === "failed") {
                 if (status.status === "completed" && status.insights) {
                   setDocumentInsights(status.insights);
                 }
-                // Auto-load outline and activate chat when upload completes
-                if (result.chat_id) {
+                if (status.status === "completed" && result.chat_id) {
                   loadChatOutline(result.chat_id);
                   setActiveChatId(result.chat_id);
                   const url = new URL(window.location.href);
@@ -396,11 +422,34 @@ export default function ChatPage() {
                   window.history.replaceState({}, "", url.toString());
                   loadChats();
                 }
+                return;
               }
             } catch (e) {
-              clearInterval(interval);
+              console.warn("Upload status poll failed:", e);
             }
-          }, 2000);
+            if (attempt >= MAX_ATTEMPTS) {
+              setUploadTasks((prev) =>
+                prev.map((t) =>
+                  t.id === result.document_id
+                    ? { ...t, status: "Tiempo agotado" }
+                    : t
+                )
+              );
+              return;
+            }
+            const delay = Math.min(POLL_INTERVAL_MS * 2 ** (attempt - 1), MAX_INTERVAL_MS);
+            timeoutId = setTimeout(tick, delay);
+          };
+
+          let timeoutId: ReturnType<typeof setTimeout> = setTimeout(tick, POLL_INTERVAL_MS);
+
+          // The previous implementation leaked this interval if the
+          // component unmounted mid-upload. Surface a cleanup hook so
+          // the caller can stop polling on navigation.
+          pendingUploadPolls.set(result.document_id, () => {
+            cancelled = true;
+            clearTimeout(timeoutId);
+          });
         }
       } catch (e) {
         console.error("Upload failed:", e);
@@ -451,6 +500,13 @@ export default function ChatPage() {
 
   const removeUploadTask = useCallback((id: number | string) => {
     setUploadTasks((prev) => prev.filter((t) => t.id !== id));
+    // Cancel the corresponding poller so a discarded task does not
+    // continue to fire API calls in the background.
+    const cancel = pendingUploadPolls.get(id);
+    if (cancel) {
+      cancel();
+      pendingUploadPolls.delete(id);
+    }
   }, []);
 
   const messagesMemo = useMemo(

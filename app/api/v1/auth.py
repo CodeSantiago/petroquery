@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, timezone
-from typing import Annotated, Optional
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -17,21 +17,30 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
-settings = get_settings()
-SECRET_KEY = settings.secret_key
+
+def _secret_key() -> str:
+    """Return the current signing secret.
+
+    The value is resolved at call-time rather than captured at module
+    import so that tests (and runtime secret rotation tools) can swap
+    the underlying settings without having to reload the module.
+    """
+    return get_settings().secret_key
 
 
 def create_access_token(data: dict) -> str:
     to_encode = data.copy()
-    # Usamos utcnow() y nos aseguramos de que el 'sub' sea string
-    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    
-    # Forzamos que el 'sub' (si viene en data) sea string para evitar el error anterior
+    # datetime.utcnow() is deprecated in Python 3.12+. Use timezone-aware
+    # datetime.now(timezone.utc) so JWT validation handles expiry correctly
+    # across DST/offset transitions and the call is forward-compatible.
+    expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+
+    # The JWT spec requires the subject claim ("sub") to be a string.
     if "sub" in to_encode:
         to_encode["sub"] = str(to_encode["sub"])
-        
+
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    encoded_jwt = jwt.encode(to_encode, _secret_key(), algorithm=ALGORITHM)
     return encoded_jwt
 
 
@@ -46,7 +55,7 @@ async def get_current_user(
     )
 
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(token, _secret_key(), algorithms=[ALGORITHM])
         # PASO 1: Extraemos el valor (puede venir como string "2" o int 2)
         raw_user_id = payload.get("sub")
         

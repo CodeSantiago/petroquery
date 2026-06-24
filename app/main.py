@@ -6,15 +6,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import Base, engine, get_db
-from app.models import Document, Message, User
-from app.schemas import DocumentResponse
-from app.api.v1.chat import router as chat_router, messages_router as messages_router
-from app.api.v1.ingest import router as ingest_router
 from app.api.v1.auth import router as auth_router, get_current_user
 from app.api.v1.admin import router as admin_router
 from app.api.v1.audits import router as audits_router
+from app.api.v1.chat import router as chat_router
+from app.api.v1.chats import router as messages_router
+from app.api.v1.ingest import router as ingest_router
 from app.api.v1.projects import router as projects_router
+from app.config import get_settings
+from app.database import Base, engine, get_db
+from app.models import Document, User
+from app.schemas import DocumentResponse
 from app.services.ai_service import AIService, get_ai_service
 
 
@@ -35,6 +37,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     print("✅ PetroQuery shutdown complete")
 
 
+settings = get_settings()
+
 app = FastAPI(
     title="PetroQuery",
     description="RAG Industrial para Oil & Gas — Especializado en operaciones de Vaca Muerta, Argentina",
@@ -42,12 +46,15 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# CORS: explicit origins from configuration, not wildcard.
+# Credentials are only allowed when origins are not "*", because browsers
+# reject credentialed requests with a wildcard Access-Control-Allow-Origin.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=settings.cors_origins_list,
+    allow_credentials=not settings.cors_allow_all,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Requested-With"],
 )
 
 app.include_router(chat_router, prefix="/api/v1")
@@ -67,7 +74,19 @@ async def health_check() -> dict[str, str]:
 @app.delete("/documents/clear", status_code=status.HTTP_200_OK)
 async def clear_documents(
     db: Annotated[AsyncSession, Depends(get_db)],
+    _admin: Annotated[User, Depends(get_current_user)],
 ) -> dict:
+    """Dangerous bulk-delete endpoint. Requires an authenticated superuser.
+
+    This route remains in the public router for backward compatibility with
+    existing tooling, but is now guarded: only superusers can call it. The
+    admin dashboard provides a safer project-scoped alternative.
+    """
+    from app.api.v1.admin import require_admin
+
+    # Reuse the admin guard for consistent 403 behaviour.
+    await require_admin(current_user=_admin)
+
     try:
         await db.execute(text("DELETE FROM documents"))
         await db.commit()
@@ -76,13 +95,14 @@ async def clear_documents(
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to clear documents: {str(e)}"
+            detail=f"Failed to clear documents: {str(e)}",
         )
 
 
 @app.get("/documents", status_code=status.HTTP_200_OK)
 async def list_documents(
     db: Annotated[AsyncSession, Depends(get_db)],
+    _user: Annotated[User, Depends(get_current_user)],
 ) -> list[DocumentResponse]:
     result = await db.execute(select(Document).order_by(Document.id.desc()))
     documents = result.scalars().all()
@@ -93,22 +113,23 @@ async def list_documents(
 async def get_document(
     document_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
+    _user: Annotated[User, Depends(get_current_user)],
 ) -> DocumentResponse:
     try:
         result = await db.execute(select(Document).where(Document.id == document_id))
         document = result.scalar_one_or_none()
-        
+
         if not document:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Document with id {document_id} not found"
+                detail=f"Document with id {document_id} not found",
             )
-        
+
         return DocumentResponse.model_validate(document)
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to retrieve document: {str(e)}"
+            detail=f"Failed to retrieve document: {str(e)}",
         )

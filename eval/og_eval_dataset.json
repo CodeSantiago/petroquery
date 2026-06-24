@@ -1,0 +1,32 @@
+[
+  {
+    "id": "OG-EVAL-001",
+    "category": "seguridad",
+    "question": "¿Cuál es el procedimiento estándar ante una fuga de H2S en superficie?",
+    "ground_truth": "El procedimiento estándar de respuesta ante fuga de H2S en superficie incluye: (1) activar la alarma de H2S y evacuar al personal no esencial hacia el muster point; (2) aislar la fuente si es seguro hacerlo utilizando el EGS (Emergency Shutdown System); (3) utilizar PPE respiratorio autónomo (SCBA) si la concentración supera los 10 ppm; (4) monitorear con detectores portátiles de cuatro gases (LEL, O2, H2S, CO); (5) reportar al supervisor HSE y bloquear el acceso hasta que la concentración baje a niveles seguros (< 10 ppm). Toda operación debe ser supervisada por un Oficial de HSE y validada contra la normativa IAPG-IRAM 301 vigente."
+  },
+  {
+    "id": "OG-EVAL-002",
+    "category": "operacional",
+    "question": "¿Qué presión máxima de operación se permite en un BOP stack según API 16A?",
+    "ground_truth": "Según API Spec 16A / API 16A, la presión máxima de trabajo (working pressure) de un BOP stack varía según la clase y el fabricante. Las clases más comunes en operaciones de Vaca Muerta son 5.000 psi y 10.000 psi. La presión de prueba hidrostática (pressure testing) debe ser 1,5 veces la presión de trabajo, realizada cada 21 días como máximo. Se debe verificar el давление de prueba (test pressure) en el certificado del fabricante y registrarlo en el libro de pozo (wellbook)."
+  },
+  {
+    "id": "OG-EVAL-003",
+    "category": "normativa",
+    "question": "¿Qué establece la Resolución SE 123/2018 para operaciones de fractura hidráulica?",
+    "ground_truth": "La Resolución SE 123/2018 de la Secretaría de Energía de Argentina establece el régimen de información y seguimiento para operaciones de fractura hidráulica en yacimientos no convencionales. Entre sus puntos principales: (1) obligatoriedad de reportar el volumen y composición del fluido de fractura inyectado; (2) monitoreo de presión y tasa de inyección en tiempo real; (3) reporte de aditivos químicos utilizados conforme al sistema deDisclosure de FracFocus; (4) protección de acuíferos mediante distancias mínimas de 500 metros respecto a perforaciones de agua dulce; (5) presentación de un informe final de terminación (well completion report) en un plazo de 90 días."
+  },
+  {
+    "id": "OG-EVAL-004",
+    "category": "equipos",
+    "question": "¿Cuáles son las especificaciones de un casing API 5CT J55 de 7\" y 23 lb/ft?",
+    "ground_truth": "Un casing API 5CT grado J55 de 7 pulgadas y 23 lb/ft tiene las siguientes especificaciones técnicas: diámetro externo 7.000 in (177.8 mm), peso nominal 23 lb/ft (34.23 kg/m), espesor de pared 0.317 in (8.05 mm), diámetro interno 6.366 in (161.7 mm), drift diameter 6.151 in (156.2 mm), resistencia a la fluencia mínima 55.000 psi (379 MPa), resistencia a la tracción mínima 75.000 psi (517 MPa). Es adecuado para profundidades intermedias (hasta aproximadamente 2.500 m) en yacimientos de la Cuenca Neuquina. La conexión estándar es BTC (Buttress Thread) o LTC (Long Thread) según el fabricante."
+  },
+  {
+    "id": "OG-EVAL-005",
+    "category": "seguridad",
+    "question": "¿Cuándo se debe realizar un simulacro de evacuación en una locación de perforación?",
+    "ground_truth": "Según las mejores prácticas de HSE y la normativa IAPG, los simulacros de evacuación en una locación de perforación deben realizarse con la siguiente frecuencia mínima: (1) simulacro de muster point al inicio de cada turno de perforación; (2) simulacro de blowout preventer y control de pozo una vez por semana; (3) simulacro de incendio y evacuación general cada 14 días; (4) simulacro de H2S una vez por semana en zonas clasificadas como H2S > 10 ppm. Todos los simulacros deben quedar registrados en el wellbook con fecha, hora, participantes y observaciones del Oficial de HSE."
+  }
+]

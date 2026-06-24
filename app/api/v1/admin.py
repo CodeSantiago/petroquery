@@ -1,16 +1,19 @@
+import logging
 import secrets
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import EmailStr
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.auth import get_current_user
+from app.config import get_settings
 from app.database import get_db
 from app.models import Project, ProjectMember, QueryAudit, User
 from app.schemas.base_schemas import UserInvite, UserResponse
 from app.services.security import get_password_hash
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -154,7 +157,23 @@ async def invite_user(
     await db.commit()
     await db.refresh(new_user)
 
-    # Log the temp password (in production, you'd email it)
-    print(f"[INVITE] User {new_user.username} invited to project {data.project_id}. Temp password: {temp_password}")
+    # Audit log: in production the temporary password is never logged. The
+    # application must deliver it to the user via a secure channel (email
+    # service, password reset link, etc.). In development the operator can
+    # opt-in via INVITE_LOG_TEMP_PASSWORD=true to surface the password in
+    # stdout for local testing.
+    settings = get_settings()
+    if settings.invite_temp_password_to_log:
+        logger.warning(
+            "[DEV ONLY] Invite temp password for %s -> %s",
+            new_user.username,
+            temp_password,
+        )
+    else:
+        logger.info(
+            "User %s invited to project %s. Temp password delivered via secure channel.",
+            new_user.username,
+            data.project_id,
+        )
 
     return new_user
