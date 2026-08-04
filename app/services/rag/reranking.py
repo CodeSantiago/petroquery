@@ -46,13 +46,16 @@ async def _load_extra_data(db: AsyncSession, doc_id: int) -> dict:
 
 def _to_source(chunk: RetrievedChunk, extra_data: dict) -> SourceReference:
     """Build a :class:`SourceReference` from a chunk + its extra_data."""
+    raw_score = chunk.rerank_score
+    normalized_score = 1.0 / (1.0 + pow(2.718281828459045, -raw_score))
+    clamped_score = max(0.0, min(1.0, normalized_score))
     return SourceReference(
         documento=chunk.title,
         pagina=extra_data.get("page", 0) or 0,
         seccion=extra_data.get("seccion") or extra_data.get("section"),
         tabla_referencia=extra_data.get("tabla_referencia"),
         figura_referencia=extra_data.get("figura_referencia"),
-        score_confianza=round(chunk.rerank_score, 4),
+        score_confianza=round(clamped_score, 4),
         contenido_citado=chunk.content[:500],
         cuenca=chunk.cuenca,
         normativa_aplicable=chunk.normativa_aplicable,
