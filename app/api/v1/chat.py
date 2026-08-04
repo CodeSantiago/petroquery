@@ -110,9 +110,9 @@ async def _build_history(db: AsyncSession, chat: Chat) -> str:
 async def ask_question(
     body: QuestionRequest,
     http_request: Request,
+    current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
     ai_service: Annotated[AIService, Depends(get_ai_service)],
-    current_user: Annotated[User, Depends(get_current_user)],
 ) -> OGTechnicalAnswer:
     start_time = time.time()
     _log_request(current_user, body)
@@ -139,7 +139,7 @@ async def ask_question(
 
     # 5. Create the audit row BEFORE running the pipeline so that even
     #    crashes are recorded.
-    audit = create_audit(
+    audit = await create_audit(
         db,
         current_user=current_user,
         project_id=body.project_id,
