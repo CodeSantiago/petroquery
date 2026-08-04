@@ -23,13 +23,42 @@ os.environ.setdefault("APP_ENV", "development")
 
 
 @pytest.fixture(autouse=True)
-def _reset_settings_cache():
+def _reset_settings_cache(monkeypatch):
     """Reset the ``get_settings`` LRU cache between tests."""
     from app import config as app_config
 
+    # Tests must not inherit real local secrets from the developer's .env.
+    monkeypatch.setitem(app_config.Settings.model_config, "env_file", None)
     app_config.get_settings.cache_clear()
     yield
     app_config.get_settings.cache_clear()
+
+
+@pytest.fixture(autouse=True)
+def _disable_rate_limit_by_default():
+    """Disable the global slowapi limiter for the test suite.
+
+    Most tests do not exercise the rate-limit logic and would be
+    brittle if a previous test left the limiter enabled. Tests that
+    DO want to exercise it (see ``tests/test_rate_limit.py``) opt
+    back in via the helper defined in that module.
+    """
+    from app.config import get_settings
+    from app.rate_limit import limiter
+
+    previous_enabled = get_settings().rate_limit_enabled
+    get_settings().rate_limit_enabled = False
+    limiter.enabled = False
+    try:
+        # Clear any in-memory counters left by earlier tests.
+        try:
+            limiter.reset()
+        except AttributeError:
+            pass
+        yield
+    finally:
+        get_settings().rate_limit_enabled = previous_enabled
+        limiter.enabled = previous_enabled
 
 
 @pytest.fixture
