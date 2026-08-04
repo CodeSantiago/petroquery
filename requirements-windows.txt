@@ -69,7 +69,7 @@ numpy==2.4.4
 openai==2.32.0
 orjson==3.11.8
 ormsgpack==1.12.2
-packaging==26.1
+packaging==24.2
 pandas==3.0.2
 passlib==1.7.4
 pgvector==0.4.2

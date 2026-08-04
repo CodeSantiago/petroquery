@@ -115,7 +115,7 @@ mypy_extensions==1.1.0
 nest-asyncio==1.6.0
 orjson==3.11.8
 ormsgpack==1.12.2
-packaging==26.1
+packaging==24.2
 pypdf==6.10.2
 python-dateutil==2.9.0.post0
 regex==2026.4.4
