@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { FileText, BookOpen, ChevronDown, Lightbulb, ListChecks, Target, GripVertical } from "lucide-react";
+import { useLanguage } from "@/lib/i18n";
 
 interface SectionInsight {
   name: string;
@@ -32,6 +33,7 @@ export default function DocumentOutline({
   isOpen,
   onClose,
 }: DocumentOutlineProps) {
+  const { t } = useLanguage();
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
   const [activeSection, setActiveSection] = useState<string | null>(null);
 
@@ -55,7 +57,7 @@ export default function DocumentOutline({
       <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2">
           <BookOpen className="w-4 h-4 text-petro-blue" />
-          <span className="text-sm font-semibold text-gray-900">Contenido</span>
+          <span className="text-sm font-semibold text-gray-900">{t("outline.title")}</span>
         </div>
         <button
           onClick={onClose}
@@ -80,7 +82,7 @@ export default function DocumentOutline({
           <details className="group rounded-lg border border-gray-200 overflow-hidden">
             <summary className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-50 list-none">
               <ListChecks className="w-3.5 h-3.5 text-gray-500" />
-              <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Resumen</span>
+              <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">{t("outline.summary")}</span>
               <ChevronDown className="w-3.5 h-3.5 text-gray-400 ml-auto transition-transform group-open:rotate-180" />
             </summary>
             <div className="px-3 pb-3 pt-1">
@@ -94,7 +96,7 @@ export default function DocumentOutline({
           <div className="rounded-lg border border-gray-200 p-3">
             <div className="flex items-center gap-1.5 mb-2">
               <ListChecks className="w-3.5 h-3.5 text-petro-blue" />
-              <span className="text-xs font-medium text-petro-blue uppercase tracking-wide">Temas del documento</span>
+              <span className="text-xs font-medium text-petro-blue uppercase tracking-wide">{t("outline.topics")}</span>
             </div>
             <div className="flex flex-wrap gap-1.5">
               {global_topics.map((topic, i) => (
@@ -115,7 +117,7 @@ export default function DocumentOutline({
             <div className="flex items-center gap-1.5">
               <BookOpen className="w-3.5 h-3.5 text-gray-500" />
               <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                Capítulos ({sections.length})
+                {t("outline.chapters")} ({sections.length})
               </span>
             </div>
 
@@ -165,7 +167,7 @@ export default function DocumentOutline({
                           <div className="space-y-2">
                             <div className="flex items-center gap-1.5">
                               <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                              <span className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Temas</span>
+                              <span className="text-xs font-semibold text-blue-700 uppercase tracking-wide">{t("outline.topics")}</span>
                             </div>
                             <div className="flex flex-wrap gap-1.5 pl-3">
                               {section.topics.map((topic, ti) => (
@@ -185,7 +187,7 @@ export default function DocumentOutline({
                           <div className="space-y-2">
                             <div className="flex items-center gap-1.5">
                               <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                              <span className="text-xs font-semibold text-amber-700 uppercase tracking-wide">Puntos clave</span>
+                              <span className="text-xs font-semibold text-amber-700 uppercase tracking-wide">{t("outline.keyPoints")}</span>
                             </div>
                             <ul className="space-y-1.5 pl-3">
                               {section.important_points.map((point, pi) => (
@@ -205,7 +207,7 @@ export default function DocumentOutline({
                           <div className="space-y-2">
                             <div className="flex items-center gap-1.5">
                               <div className="w-1.5 h-1.5 rounded-full bg-purple-500" />
-                              <span className="text-xs font-semibold text-purple-700 uppercase tracking-wide">Preguntas sugeridas</span>
+                              <span className="text-xs font-semibold text-purple-700 uppercase tracking-wide">{t("outline.suggestedQuestions")}</span>
                             </div>
                             <div className="space-y-1 pl-3">
                               {section.questions.map((question, qi) => (
@@ -240,7 +242,7 @@ export default function DocumentOutline({
             <div className="flex items-center gap-1.5 mb-3">
               <Lightbulb className="w-3.5 h-3.5 text-gray-500" />
               <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                Preguntas generales ({global_questions.length})
+                {t("outline.generalQuestions")} ({global_questions.length})
               </span>
             </div>
             <div className="space-y-2">

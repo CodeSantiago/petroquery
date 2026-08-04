@@ -18,6 +18,8 @@ import {
   Mail,
   CheckCircle2,
 } from "lucide-react";
+import { useLanguage } from "@/lib/i18n";
+import LanguageToggle from "@/app/components/LanguageToggle";
 
 interface Telemetry {
   total_users: number;
@@ -53,6 +55,7 @@ interface Project {
 
 export default function AdminPage() {
   const router = useRouter();
+  const { t } = useLanguage();
   const [isLoading, setIsLoading] = useState(true);
   const [telemetry, setTelemetry] = useState<Telemetry | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -177,17 +180,18 @@ export default function AdminPage() {
           <div className="w-10 h-10 rounded-xl bg-[#23232d] flex items-center justify-center">
             <Zap className="w-5 h-5 text-white" />
           </div>
-          <span className="font-semibold text-xl">Admin Dashboard</span>
+          <span className="font-semibold text-xl">{t("admin.title")}</span>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => router.push("/chat")}
             className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-            title="Volver al Chat"
+            title={t("nav.chat")}
           >
             <ArrowLeft className="w-5 h-5 text-[#5e5e68]" />
           </button>
           <span className="text-sm text-[#8e8e98]">{currentUser?.username}</span>
+          <LanguageToggle />
           <button
             onClick={handleLogout}
             className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
@@ -202,12 +206,12 @@ export default function AdminPage() {
         <div className="bg-white border border-gray-100 rounded-2xl p-6">
           <div className="flex items-center gap-2 mb-4">
             <UserPlus className="w-5 h-5 text-petro-blue" />
-            <h2 className="text-lg font-semibold">Invitar Usuario</h2>
+            <h2 className="text-lg font-semibold">{t("admin.inviteUser")}</h2>
           </div>
 
           <form onSubmit={handleInvite} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
             <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1.5">Email</label>
+              <label className="block text-sm font-medium text-gray-600 mb-1.5">{t("admin.email")}</label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
@@ -222,7 +226,7 @@ export default function AdminPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1.5">Usuario</label>
+              <label className="block text-sm font-medium text-gray-600 mb-1.5">{t("admin.username")}</label>
               <input
                 type="text"
                 value={inviteUsername}
@@ -234,28 +238,28 @@ export default function AdminPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1.5">Rol</label>
+              <label className="block text-sm font-medium text-gray-600 mb-1.5">{t("admin.role")}</label>
               <select
                 value={inviteRole}
                 onChange={(e) => setInviteRole(e.target.value)}
                 className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:border-petro-blue transition-all text-sm"
                 required
               >
-                <option value="operator">Operator</option>
-                <option value="engineer">Engineer</option>
-                <option value="admin">Admin</option>
+                <option value="operator">{t("admin.roleOperator")}</option>
+                <option value="engineer">{t("admin.roleEngineer")}</option>
+                <option value="admin">{t("admin.roleAdmin")}</option>
               </select>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1.5">Proyecto</label>
+              <label className="block text-sm font-medium text-gray-600 mb-1.5">{t("admin.project")}</label>
               <select
                 value={inviteProjectId}
                 onChange={(e) => setInviteProjectId(Number(e.target.value))}
                 className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:border-petro-blue transition-all text-sm"
                 required
               >
-                <option value="">Seleccionar proyecto</option>
+                <option value="">{t("admin.selectProject")}</option>
                 {projects.map((project) => (
                   <option key={project.id} value={project.id}>
                     {project.name}
@@ -270,7 +274,7 @@ export default function AdminPage() {
               className="w-full py-2.5 bg-petro-blue hover:bg-petro-dark disabled:opacity-50 disabled:cursor-not-allowed rounded-xl text-white font-medium transition-all duration-200 flex items-center justify-center gap-2 text-sm"
             >
               {inviteLoading ? <LoaderIcon /> : <UserPlus className="w-4 h-4" />}
-              Enviar Invitación
+              {t("admin.sendInvitation")}
             </button>
           </form>
 
@@ -290,32 +294,32 @@ export default function AdminPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <KPICard
             icon={Users}
-            label="Total Usuarios"
+            label={t("admin.totalUsers")}
             value={telemetry?.total_users || 0}
             color="bg-gray-100"
           />
           <KPICard
             icon={FileText}
-            label="Documentos"
+            label={t("admin.totalDocuments")}
             value={telemetry?.total_documents || 0}
             color="bg-gray-100"
           />
           <KPICard
             icon={Database}
-            label="Chunks"
+            label={t("admin.totalChunks")}
             value={telemetry?.total_chunks || 0}
             color="bg-gray-100"
           />
           <KPICard
             icon={Zap}
-            label="Tokens Est."
+            label={t("admin.estimatedTokens")}
             value={telemetry?.estimated_tokens || 0}
             color="bg-gray-100"
           />
         </div>
 
         <div className="bg-white border border-gray-100 rounded-2xl p-6">
-          <h2 className="text-lg font-semibold mb-4">Actividad (Últimos 7 días)</h2>
+          <h2 className="text-lg font-semibold mb-4">{t("admin.activity")}</h2>
           <div className="h-64">
             <ActivityChart data={activity} />
           </div>
@@ -323,7 +327,7 @@ export default function AdminPage() {
 
         <div className="bg-white border border-gray-100 rounded-2xl p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold">Usuarios</h2>
+            <h2 className="text-lg font-semibold">{t("admin.usersTable")}</h2>
             <button
               onClick={fetchData}
               className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
@@ -336,12 +340,12 @@ export default function AdminPage() {
             <table className="w-full">
               <thead>
                 <tr className="text-left text-sm text-[#8e8e98] border-b border-gray-100">
-                  <th className="pb-3">Usuario</th>
-                  <th className="pb-3">Email</th>
-                  <th className="pb-3">Registrado</th>
-                  <th className="pb-3">Docs</th>
-                  <th className="pb-3">Estado</th>
-                  <th className="pb-3">Acciones</th>
+                  <th className="pb-3">{t("admin.userColumn")}</th>
+                  <th className="pb-3">{t("admin.emailColumn")}</th>
+                  <th className="pb-3">{t("admin.registeredColumn")}</th>
+                  <th className="pb-3">{t("admin.docsColumn")}</th>
+                  <th className="pb-3">{t("admin.statusColumn")}</th>
+                  <th className="pb-3">{t("admin.actionsColumn")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -364,14 +368,14 @@ export default function AdminPage() {
                             : "bg-gray-50 text-[#8e8e98]"
                         }`}
                       >
-                        {user.is_active ? "Activo" : "Suspendido"}
+                        {user.is_active ? t("admin.active") : t("admin.suspended")}
                       </span>
                     </td>
                     <td className="py-3">
                       <button
                         onClick={() => handleSuspend(user.id)}
                         className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-                        title={user.is_active ? "Suspender" : "Activar"}
+                        title={user.is_active ? t("admin.suspend") : t("admin.activate")}
                       >
                         <UserX className="w-4 h-4 text-[#8e8e68]" />
                       </button>
@@ -386,14 +390,14 @@ export default function AdminPage() {
         <div className="bg-white border border-gray-100 rounded-2xl p-6">
           <div className="flex items-center gap-2 mb-4">
             <AlertCircle className="w-5 h-5 text-[#5e5e68]" />
-            <h2 className="text-lg font-semibold">Logs de Error</h2>
+            <h2 className="text-lg font-semibold">{t("admin.errorLogs")}</h2>
           </div>
           <div className="space-y-2 max-h-48 overflow-y-auto">
             <div className="p-3 rounded-xl bg-gray-50 text-sm text-[#5e5e68]">
-              <span className="text-[#8e8e98] font-mono">[2024-01-01 00:00:00]</span> System operational
+              <span className="text-[#8e8e98] font-mono">[2024-01-01 00:00:00]</span> {t("admin.systemOperational")}
             </div>
             <div className="p-3 rounded-xl bg-gray-50 text-sm text-[#5e5e68]">
-              <span className="text-[#8e8e98] font-mono">[2024-01-01 00:00:00]</span> Database connection active
+              <span className="text-[#8e8e98] font-mono">[2024-01-01 00:00:00]</span> {t("admin.dbConnected")}
             </div>
           </div>
         </div>

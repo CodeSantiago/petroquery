@@ -1,26 +1,31 @@
+"use client";
+
 import { cn } from "@/lib/utils";
 import { ShieldCheck, AlertCircle, AlertOctagon } from "lucide-react";
 import type { ElementType } from "react";
+import { useLanguage } from "@/lib/i18n";
 
 interface ConfidenceBadgeProps {
   score: number;
 }
 
 export default function ConfidenceBadge({ score }: ConfidenceBadgeProps) {
+  const { t } = useLanguage();
+
   let label: string;
   let colorClass: string;
   let Icon: ElementType;
 
   if (score > 0.8) {
-    label = "Alta confianza";
+    label = t("confidence.high");
     colorClass = "bg-green-100 text-green-800 border-green-200";
     Icon = ShieldCheck;
   } else if (score >= 0.7) {
-    label = "Confianza media - Verificar";
+    label = t("confidence.medium");
     colorClass = "bg-yellow-100 text-yellow-800 border-yellow-200";
     Icon = AlertCircle;
   } else {
-    label = "Baja confianza - Revisión humana requerida";
+    label = t("confidence.low");
     colorClass = "bg-red-100 text-red-800 border-red-200";
     Icon = AlertOctagon;
   }

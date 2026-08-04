@@ -1,10 +1,14 @@
+"use client";
+
 import { AlertTriangle } from "lucide-react";
+import { useLanguage } from "@/lib/i18n";
 
 interface SafetyBannerProps {
   warning?: string;
 }
 
 export default function SafetyBanner({ warning }: SafetyBannerProps) {
+  const { t } = useLanguage();
   if (!warning) return null;
 
   return (
@@ -12,7 +16,7 @@ export default function SafetyBanner({ warning }: SafetyBannerProps) {
       <AlertTriangle className="w-6 h-6 flex-shrink-0 mt-0.5" />
       <div className="flex-1">
         <p className="font-bold text-sm uppercase tracking-wide">
-          Advertencia de Seguridad
+          {t("safety.warningTitle")}
         </p>
         <p className="text-sm mt-0.5 font-medium leading-relaxed">{warning}</p>
       </div>

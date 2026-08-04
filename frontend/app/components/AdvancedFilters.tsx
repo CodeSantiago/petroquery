@@ -3,24 +3,28 @@
 import { useState } from "react";
 import { FilterParams } from "@/lib/types";
 import { Filter, ChevronDown, ChevronUp, X } from "lucide-react";
+import { useLanguage } from "@/lib/i18n";
 
 interface AdvancedFiltersProps {
   filters: FilterParams;
   onChange: (filters: FilterParams) => void;
 }
 
-const CUENCAS = ["Todas", "Vaca Muerta", "Neuquina", "Golfo San Jorge", "Cuyana"];
-const TIPOS_DOCUMENTO = ["Todos", "manual", "normativa", "reporte", "especificacion"];
-const TIPOS_EQUIPO = ["Todos", "BOP", "Casing", "Tubing", "Christmas Tree", "Pumpjack"];
-const NORMATIVAS = ["Todas", "IAPG-IRAM 301", "API RP 14B", "API RP 14C", "API RP 75", "ANSI/ASME B31.3"];
-
 export default function AdvancedFilters({ filters, onChange }: AdvancedFiltersProps) {
+  const { t, language } = useLanguage();
   const [open, setOpen] = useState(false);
 
+  const CUENCAS = [t("filters.all"), t("basin.vacaMuerta"), t("basin.neuquina"), t("basin.golfoSanJorge"), t("basin.cuyana")];
+  const TIPOS_DOCUMENTO = [t("filters.allOptions"), t("docType.manual"), t("docType.regulation"), t("docType.report"), t("docType.specification")];
+  const TIPOS_EQUIPO = [t("filters.allOptions"), t("equip.bop"), t("equip.casing"), t("equip.tubing"), t("equip.christmasTree"), t("equip.pumpjack")];
+  const NORMATIVAS = [t("filters.allOptions"), t("reg.iapg"), t("reg.api14b"), t("reg.api14c"), t("reg.api75"), t("reg.asme")];
+
   const update = (key: keyof FilterParams, value: string) => {
+    const allValue = language === "es" ? "Todas" : t("filters.all");
+    const allOptionsValue = language === "es" ? "Todos" : t("filters.allOptions");
     onChange({
       ...filters,
-      [key]: value === "Todas" || value === "Todos" ? undefined : value,
+      [key]: value === allValue || value === allOptionsValue ? undefined : value,
     });
   };
 
@@ -41,7 +45,7 @@ export default function AdvancedFilters({ filters, onChange }: AdvancedFiltersPr
         className="flex items-center gap-2 text-sm text-petro-blue hover:text-petro-dark font-medium transition-colors"
       >
         <Filter className="w-4 h-4" />
-        Filtros avanzados
+        {t("filters.title")}
         {hasActive && (
           <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-petro-orange text-white text-[10px] font-bold">
             !
@@ -54,10 +58,10 @@ export default function AdvancedFilters({ filters, onChange }: AdvancedFiltersPr
         <div className="mt-3 p-4 bg-white border border-gray-200 rounded-xl shadow-sm grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 animate-in fade-in slide-in-from-top-1 duration-200">
           <div>
             <label className="block text-xs font-semibold text-gray-600 mb-1.5">
-              Cuenca
+              {t("filters.basin")}
             </label>
             <select
-              value={filters.cuenca || "Todas"}
+              value={filters.cuenca || t("filters.all")}
               onChange={(e) => update("cuenca", e.target.value)}
               className="w-full px-3 py-2 bg-petro-gray border border-gray-200 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-petro-blue/30 focus:border-petro-blue"
             >
@@ -71,10 +75,10 @@ export default function AdvancedFilters({ filters, onChange }: AdvancedFiltersPr
 
           <div>
             <label className="block text-xs font-semibold text-gray-600 mb-1.5">
-              Tipo de Documento
+              {t("filters.docType")}
             </label>
             <select
-              value={filters.tipo_documento || "Todos"}
+              value={filters.tipo_documento || t("filters.allOptions")}
               onChange={(e) => update("tipo_documento", e.target.value)}
               className="w-full px-3 py-2 bg-petro-gray border border-gray-200 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-petro-blue/30 focus:border-petro-blue"
             >
@@ -88,10 +92,10 @@ export default function AdvancedFilters({ filters, onChange }: AdvancedFiltersPr
 
           <div>
             <label className="block text-xs font-semibold text-gray-600 mb-1.5">
-              Tipo de Equipo
+              {t("filters.equipmentType")}
             </label>
             <select
-              value={filters.tipo_equipo || "Todos"}
+              value={filters.tipo_equipo || t("filters.allOptions")}
               onChange={(e) => update("tipo_equipo", e.target.value)}
               className="w-full px-3 py-2 bg-petro-gray border border-gray-200 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-petro-blue/30 focus:border-petro-blue"
             >
@@ -105,10 +109,10 @@ export default function AdvancedFilters({ filters, onChange }: AdvancedFiltersPr
 
           <div>
             <label className="block text-xs font-semibold text-gray-600 mb-1.5">
-              Normativa Aplicable
+              {t("filters.regulation")}
             </label>
             <select
-              value={filters.normativa_aplicable || "Todas"}
+              value={filters.normativa_aplicable || t("filters.allOptions")}
               onChange={(e) => update("normativa_aplicable", e.target.value)}
               className="w-full px-3 py-2 bg-petro-gray border border-gray-200 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-petro-blue/30 focus:border-petro-blue"
             >
@@ -126,7 +130,7 @@ export default function AdvancedFilters({ filters, onChange }: AdvancedFiltersPr
                 onClick={clear}
                 className="inline-flex items-center gap-1 text-xs text-red-600 hover:text-red-700 font-medium"
               >
-                <X className="w-3 h-3" /> Limpiar filtros
+                <X className="w-3 h-3" /> {t("filters.clear")}
               </button>
             </div>
           )}

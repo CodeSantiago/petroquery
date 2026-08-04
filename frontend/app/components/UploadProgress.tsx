@@ -1,5 +1,8 @@
+"use client";
+
 import { cn } from "@/lib/utils";
 import { Upload, Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { useLanguage } from "@/lib/i18n";
 
 interface UploadProgressProps {
   progress: number;
@@ -8,9 +11,11 @@ interface UploadProgressProps {
 }
 
 export default function UploadProgress({ progress, status, fileName }: UploadProgressProps) {
+  const { t } = useLanguage();
+
   const isError = status.toLowerCase().includes("error");
-  const isCompleted = status.toLowerCase().includes("completado");
-  const isProcessing = status.toLowerCase().includes("procesando");
+  const isCompleted = status.toLowerCase().includes(t("upload.status.completed").toLowerCase());
+  const isProcessing = status.toLowerCase().includes(t("upload.status.processing").toLowerCase());
 
   const statusIcon = isError ? (
     <XCircle className="w-4 h-4 text-red-500" />

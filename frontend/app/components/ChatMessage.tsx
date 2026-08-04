@@ -7,6 +7,7 @@ import ConfidenceBadge from "./ConfidenceBadge";
 import SourceCard from "./SourceCard";
 import NumberHighlighter from "./NumberHighlighter";
 import { User, Bot, AlertTriangle, FileBadge } from "lucide-react";
+import { useLanguage } from "@/lib/i18n";
 
 interface ChatMessageProps {
   message: Message;
@@ -80,6 +81,7 @@ function renderInline(text: string) {
 
 export default function ChatMessage({ message }: ChatMessageProps) {
   const isUser = message.role === "user";
+  const { t } = useLanguage();
   // Prefer local answer_data, fall back to structured_response from API
   const answer: OGTechnicalAnswer | undefined = message.answer_data || message.structured_response;
 
@@ -136,7 +138,7 @@ export default function ChatMessage({ message }: ChatMessageProps) {
                 <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
                   <AlertTriangle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
                   <p className="text-xs text-red-700 font-medium">
-                    Esta respuesta requiere revisión humana antes de su aplicación operativa.
+                    {t("chatMessage.requiresHumanReview")}
                   </p>
                 </div>
               )}
@@ -151,7 +153,7 @@ export default function ChatMessage({ message }: ChatMessageProps) {
         {!isUser && answer && answer.fuentes.length > 0 && (
           <div className="space-y-2 max-w-[85%]">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-              Fuentes consultadas
+              {t("chatMessage.sourcesConsulted")}
             </p>
             {answer.fuentes.map((fuente, idx) => (
               <SourceCard key={idx} source={fuente} />

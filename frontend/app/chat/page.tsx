@@ -42,6 +42,8 @@ import {
 } from "lucide-react";
 import DocumentInsights from "@/app/components/DocumentInsights";
 import DocumentOutline from "@/app/components/DocumentOutline";
+import { useLanguage } from "@/lib/i18n";
+import LanguageToggle from "@/app/components/LanguageToggle";
 
 interface UploadTask {
   id: number | string;
@@ -74,6 +76,7 @@ interface Project {
 
 export default function ChatPage() {
   const router = useRouter();
+  const { t } = useLanguage();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -121,23 +124,6 @@ export default function ChatPage() {
     }
   }, []);
 
-  const loadChat = useCallback(async (chatId: number) => {
-    try {
-      const data = await getChatMessages(chatId);
-      // Map structured_response from API to answer_data for rendering
-      const mappedMessages = data.map((msg: Message) => ({
-        ...msg,
-        answer_data: msg.structured_response || msg.answer_data,
-      }));
-      setMessages(mappedMessages);
-      setActiveChatId(chatId);
-      // Load document outline for this chat
-      await loadChatOutline(chatId);
-    } catch (e) {
-      console.error("Failed to load chat:", e);
-    }
-  }, []);
-
   const loadChatOutline = useCallback(async (chatId: number) => {
     try {
       const token = getAuthToken();
@@ -155,6 +141,22 @@ export default function ChatPage() {
       console.error("Failed to load outline:", e);
     }
   }, []);
+
+  const loadChat = useCallback(async (chatId: number) => {
+    try {
+      const data = await getChatMessages(chatId);
+      // Map structured_response from API to answer_data for rendering
+      const mappedMessages = data.map((msg: Message) => ({
+        ...msg,
+        answer_data: msg.structured_response || msg.answer_data,
+      }));
+      setMessages(mappedMessages);
+      setActiveChatId(chatId);
+      await loadChatOutline(chatId);
+    } catch (e) {
+      console.error("Failed to load chat:", e);
+    }
+  }, [loadChatOutline]);
 
   const loadProject = useCallback(async (pid: number) => {
     try {
@@ -282,7 +284,7 @@ export default function ChatPage() {
         setIsLoading(false);
       }
     },
-    [input, isLoading, activeChatId, filters, loadChats]
+    [input, isLoading, activeChatId, projectId, filters, loadChats]
   );
 
   const handleKeyDown = useCallback(
@@ -570,7 +572,7 @@ export default function ChatPage() {
         {chats.length === 0 ? (
           <div className="px-2 py-6 text-center">
             <MessageSquare className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-            <p className="text-xs text-gray-400">Sin consultas aún</p>
+            <p className="text-xs text-gray-400">{t("chat.noQueries")}</p>
           </div>
         ) : (
           chats.map((chat) => (
@@ -633,7 +635,7 @@ export default function ChatPage() {
                       startRename(chat);
                     }}
                     className="p-1 rounded hover:bg-gray-200 text-gray-500"
-                    title="Renombrar"
+                    title={t("chat.renameTitle")}
                   >
                     <Pencil className="w-3 h-3" />
                   </button>
@@ -643,7 +645,7 @@ export default function ChatPage() {
                       handleDeleteChat(chat.id);
                     }}
                     className="p-1 rounded hover:bg-red-100 text-red-500"
-                    title="Eliminar"
+                    title={t("chat.deleteTitle")}
                   >
                     <Trash2 className="w-3 h-3" />
                   </button>
@@ -738,15 +740,15 @@ export default function ChatPage() {
             <h1 className="text-sm font-semibold text-gray-800 truncate">
               {activeChatId
                 ? chats.find((c) => c.id === activeChatId)?.title ||
-                  `Consulta #${activeChatId}`
-                : "Nueva consulta técnica"}
+                  `${t("chat.newQuery")} #${activeChatId}`
+                : t("chat.newQuery")}
             </h1>
             <p className="text-[10px] text-gray-400 truncate">
               {currentProject
-                ? `${currentProject.name} · ${currentProject.cuenca || "Sin cuenca"}`
+                ? `${currentProject.name} · ${currentProject.cuenca || t("common.empty")}`
                 : activeChatId
                 ? "Consulta con trazabilidad completa"
-                : "Inicia una nueva consulta especializada"}
+                : t("chat.newQuery")}
             </p>
           </div>
           <button
@@ -757,18 +759,19 @@ export default function ChatPage() {
                 ? "bg-petro-blue text-white"
                 : "text-petro-blue hover:bg-petro-light"
             )}
-            title="Ver contenido del documento"
+            title={t("chat.viewDocument")}
           >
             <BookOpen className="w-3.5 h-3.5" />
-            Contenido
+            {t("nav.manual")}
           </button>
           <Link
             href="/manual"
             className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-petro-blue hover:bg-petro-light transition-colors"
           >
             <BookOpen className="w-3.5 h-3.5" />
-            Manual
+            {t("nav.manual")}
           </Link>
+          <LanguageToggle />
         </header>
 
         {/* Messages */}
@@ -799,8 +802,7 @@ export default function ChatPage() {
                   <Upload className="w-5 h-5 text-petro-blue" />
                 </div>
                 <div className="text-left">
-                  <p className="font-medium text-gray-800">No hay documentos cargados</p>
-                  <p className="text-gray-500 mt-0.5">Subí un PDF técnico para empezar a consultar</p>
+                  <p className="font-medium text-gray-800">{t("chat.uploadPrompt")}</p>
                 </div>
               </div>
             </div>
@@ -906,7 +908,7 @@ export default function ChatPage() {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder="Escribe tu consulta técnica..."
+                  placeholder={t("chat.inputPlaceholder")}
                   rows={1}
                   className="w-full px-4 py-3.5 bg-petro-gray border border-gray-200 rounded-xl text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-petro-blue/20 focus:border-petro-blue resize-none text-sm"
                   style={{ minHeight: 48, maxHeight: 160 }}
@@ -917,7 +919,7 @@ export default function ChatPage() {
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 className="p-3.5 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
-                title="Subir PDF"
+                title={t("chat.uploadTitle")}
               >
                 <Upload className="w-5 h-5" />
               </button>

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { FileText, Lightbulb, ListChecks, ChevronDown, ChevronUp, Sparkles } from "lucide-react";
+import { useLanguage } from "@/lib/i18n";
 
 interface SectionOld {
   name: string;
@@ -26,6 +27,7 @@ interface DocumentInsightsProps {
 }
 
 export default function DocumentInsights({ insights, onAskQuestion }: DocumentInsightsProps) {
+  const { t } = useLanguage();
   const [expanded, setExpanded] = useState(true);
 
   if (!insights || (!insights.summary && !insights.sections?.length && !insights.questions?.length)) {
@@ -43,7 +45,7 @@ export default function DocumentInsights({ insights, onAskQuestion }: DocumentIn
       >
         <div className="flex items-center gap-2">
           <Sparkles className="w-4 h-4 text-petro-blue" />
-          <span className="text-sm font-semibold text-petro-blue">Resumen del documento</span>
+          <span className="text-sm font-semibold text-petro-blue">{t("insights.title")}</span>
         </div>
         {expanded ? (
           <ChevronUp className="w-4 h-4 text-gray-400" />
@@ -59,7 +61,7 @@ export default function DocumentInsights({ insights, onAskQuestion }: DocumentIn
             <div>
               <div className="flex items-center gap-1.5 mb-2">
                 <FileText className="w-3.5 h-3.5 text-gray-500" />
-                <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Resumen técnico</span>
+                <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">{t("insights.summary")}</span>
               </div>
               <div className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap bg-petro-gray rounded-lg p-3">
                 {insights.summary}
@@ -72,7 +74,7 @@ export default function DocumentInsights({ insights, onAskQuestion }: DocumentIn
             <div>
               <div className="flex items-center gap-1.5 mb-2">
                 <ListChecks className="w-3.5 h-3.5 text-gray-500" />
-                <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Secciones detectadas</span>
+                <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">{t("insights.sections")}</span>
               </div>
               <div className="flex flex-wrap gap-2">
                 {displaySections.map((section, i) => (
@@ -92,7 +94,7 @@ export default function DocumentInsights({ insights, onAskQuestion }: DocumentIn
             <div>
               <div className="flex items-center gap-1.5 mb-2">
                 <Lightbulb className="w-3.5 h-3.5 text-gray-500" />
-                <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Preguntas sugeridas</span>
+                <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">{t("insights.questions")}</span>
               </div>
               <div className="space-y-2">
                 {insights.questions.map((question, i) => (

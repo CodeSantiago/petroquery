@@ -4,12 +4,14 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { SourceReference } from "@/lib/types";
 import { FileText, ChevronDown, ChevronUp, ExternalLink, X, BookOpen } from "lucide-react";
+import { useLanguage } from "@/lib/i18n";
 
 interface SourceCardProps {
   source: SourceReference;
 }
 
 export default function SourceCard({ source }: SourceCardProps) {
+  const { t } = useLanguage();
   const [expanded, setExpanded] = useState(false);
   const [showModal, setShowModal] = useState(false);
 
@@ -46,7 +48,7 @@ export default function SourceCard({ source }: SourceCardProps) {
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
               <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-petro-light text-petro-blue">
-                Pág. {source.pagina}
+                {t("source.page")} {source.pagina}
               </span>
               <span
                 className={cn(
@@ -62,17 +64,17 @@ export default function SourceCard({ source }: SourceCardProps) {
           <div className="flex flex-wrap gap-2 mt-2">
             {source.seccion && (
               <span className="text-xs text-gray-500">
-                Sección: <span className="font-medium text-gray-700">{source.seccion}</span>
+                {t("source.section")}: <span className="font-medium text-gray-700">{source.seccion}</span>
               </span>
             )}
             {source.tabla_referencia && (
               <span className="text-xs text-gray-500">
-                Tabla: <span className="font-medium text-gray-700">{source.tabla_referencia}</span>
+                {t("source.table")}: <span className="font-medium text-gray-700">{source.tabla_referencia}</span>
               </span>
             )}
             {source.figura_referencia && (
               <span className="text-xs text-gray-500">
-                Figura: <span className="font-medium text-gray-700">{source.figura_referencia}</span>
+                {t("source.figure")}: <span className="font-medium text-gray-700">{source.figura_referencia}</span>
               </span>
             )}
           </div>
@@ -84,11 +86,11 @@ export default function SourceCard({ source }: SourceCardProps) {
             >
               {expanded ? (
                 <>
-                  <ChevronUp className="w-3 h-3" /> Ocultar contenido
+                  <ChevronUp className="w-3 h-3" /> {t("source.hideContent")}
                 </>
               ) : (
                 <>
-                  <ChevronDown className="w-3 h-3" /> Ver contenido citado
+                  <ChevronDown className="w-3 h-3" /> {t("source.showContent")}
                 </>
               )}
             </button>
@@ -96,7 +98,7 @@ export default function SourceCard({ source }: SourceCardProps) {
               onClick={() => setShowModal(true)}
               className="text-xs text-petro-orange hover:text-petro-dark font-medium flex items-center gap-1 transition-colors"
             >
-              <ExternalLink className="w-3 h-3" /> Ver en documento
+              <ExternalLink className="w-3 h-3" /> {t("source.viewInDocument")}
             </button>
           </div>
         </div>
@@ -118,7 +120,7 @@ export default function SourceCard({ source }: SourceCardProps) {
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
               <div className="flex items-center gap-2">
                 <BookOpen className="w-5 h-5 text-petro-blue" />
-                <h3 className="font-semibold text-gray-900">Detalle de fuente</h3>
+                <h3 className="font-semibold text-gray-900">{t("source.documentDetail")}</h3>
               </div>
               <button
                 onClick={() => setShowModal(false)}
@@ -133,33 +135,33 @@ export default function SourceCard({ source }: SourceCardProps) {
               {/* Document info */}
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div className="bg-petro-gray rounded-lg p-3">
-                  <span className="text-xs text-gray-500 uppercase tracking-wide">Documento</span>
+                  <span className="text-xs text-gray-500 uppercase tracking-wide">{t("source.document")}</span>
                   <p className="font-medium text-gray-900 mt-1">{source.documento}</p>
                 </div>
                 <div className="bg-petro-gray rounded-lg p-3">
-                  <span className="text-xs text-gray-500 uppercase tracking-wide">Página</span>
+                  <span className="text-xs text-gray-500 uppercase tracking-wide">{t("source.page")}</span>
                   <p className="font-medium text-gray-900 mt-1">{source.pagina}</p>
                 </div>
                 {source.seccion && (
                   <div className="bg-petro-gray rounded-lg p-3">
-                    <span className="text-xs text-gray-500 uppercase tracking-wide">Sección</span>
+                    <span className="text-xs text-gray-500 uppercase tracking-wide">{t("source.section")}</span>
                     <p className="font-medium text-gray-900 mt-1">{source.seccion}</p>
                   </div>
                 )}
                 {source.tabla_referencia && (
                   <div className="bg-petro-gray rounded-lg p-3">
-                    <span className="text-xs text-gray-500 uppercase tracking-wide">Tabla</span>
+                    <span className="text-xs text-gray-500 uppercase tracking-wide">{t("source.table")}</span>
                     <p className="font-medium text-gray-900 mt-1">{source.tabla_referencia}</p>
                   </div>
                 )}
                 {source.figura_referencia && (
                   <div className="bg-petro-gray rounded-lg p-3">
-                    <span className="text-xs text-gray-500 uppercase tracking-wide">Figura</span>
+                    <span className="text-xs text-gray-500 uppercase tracking-wide">{t("source.figure")}</span>
                     <p className="font-medium text-gray-900 mt-1">{source.figura_referencia}</p>
                   </div>
                 )}
                 <div className="bg-petro-gray rounded-lg p-3">
-                  <span className="text-xs text-gray-500 uppercase tracking-wide">Score de confianza</span>
+                  <span className="text-xs text-gray-500 uppercase tracking-wide">{t("source.score")}</span>
                   <p className={cn(
                     "font-medium mt-1",
                     source.score_confianza > 0.8 ? "text-green-700" :
@@ -170,13 +172,13 @@ export default function SourceCard({ source }: SourceCardProps) {
                 </div>
                 {source.cuenca && (
                   <div className="bg-petro-gray rounded-lg p-3">
-                    <span className="text-xs text-gray-500 uppercase tracking-wide">Cuenca</span>
+                    <span className="text-xs text-gray-500 uppercase tracking-wide">{t("source.basin")}</span>
                     <p className="font-medium text-gray-900 mt-1">{source.cuenca}</p>
                   </div>
                 )}
                 {source.normativa_aplicable && (
                   <div className="bg-petro-gray rounded-lg p-3">
-                    <span className="text-xs text-gray-500 uppercase tracking-wide">Normativa</span>
+                    <span className="text-xs text-gray-500 uppercase tracking-wide">{t("source.regulation")}</span>
                     <p className="font-medium text-gray-900 mt-1">{source.normativa_aplicable}</p>
                   </div>
                 )}
@@ -185,7 +187,7 @@ export default function SourceCard({ source }: SourceCardProps) {
               {/* Cited content */}
               <div>
                 <span className="text-xs text-gray-500 uppercase tracking-wide font-semibold">
-                  Contenido citado
+                  {t("source.citedContent")}
                 </span>
                 <div className="mt-2 bg-petro-gray rounded-lg p-4 text-sm text-gray-700 leading-relaxed border border-gray-200 whitespace-pre-wrap">
                   {source.contenido_citado}
@@ -196,7 +198,7 @@ export default function SourceCard({ source }: SourceCardProps) {
             {/* Footer */}
             <div className="px-5 py-3 border-t border-gray-200 bg-gray-50 rounded-b-xl">
               <p className="text-xs text-gray-500 text-center">
-                Fuente consultada por PetroQuery con trazabilidad absoluta
+                {t("source.footer")}
               </p>
             </div>
           </div>

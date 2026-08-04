@@ -5,9 +5,12 @@ import { useRouter } from "next/navigation";
 import { login, getCurrentUser } from "@/lib/api";
 import { Loader2, LogIn, Lock, ArrowLeft } from "lucide-react";
 import Link from "next/link";
+import { useLanguage } from "@/lib/i18n";
+import LanguageToggle from "@/app/components/LanguageToggle";
 
 function AuthContent() {
   const router = useRouter();
+  const { t } = useLanguage();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -32,7 +35,7 @@ function AuthContent() {
         router.push("/projects");
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ocurrió un error");
+      setError(err instanceof Error ? err.message : t("common.error"));
     } finally {
       setIsLoading(false);
     }
@@ -44,6 +47,9 @@ function AuthContent() {
       <div className="fixed inset-0 mesh-gradient opacity-40 pointer-events-none" />
       
       <div className="relative w-full max-w-md p-8 bg-white border border-gray-200 rounded-2xl shadow-sm">
+        <div className="absolute top-4 right-4">
+          <LanguageToggle />
+        </div>
         <Link 
           href="/"
           className="absolute top-4 left-4 p-2 rounded-lg hover:bg-gray-100 transition-colors"
@@ -56,33 +62,33 @@ function AuthContent() {
             <LogIn className="w-8 h-8 text-white" />
           </div>
           <h1 className="text-2xl font-semibold text-gray-900">
-            Iniciar Sesión
+            {t("auth.title")}
           </h1>
           <p className="text-gray-500 mt-2">
-            Acceso corporativo - PetroQuery
+            {t("auth.subtitle")}
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-500 mb-1.5">Usuario</label>
+            <label className="block text-sm font-medium text-gray-500 mb-1.5">{t("auth.usernameLabel")}</label>
             <input
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder="tuusuario"
+              placeholder={t("auth.usernamePlaceholder")}
               className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-petro-blue transition-all"
               required
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-500 mb-1.5">Contraseña</label>
+            <label className="block text-sm font-medium text-gray-500 mb-1.5">{t("auth.passwordLabel")}</label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
+              placeholder={t("auth.passwordPlaceholder")}
               className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-petro-blue transition-all"
               required
             />
@@ -100,7 +106,7 @@ function AuthContent() {
             className="w-full py-3.5 bg-petro-blue hover:bg-petro-dark disabled:opacity-50 disabled:cursor-not-allowed rounded-xl text-white font-medium transition-all duration-200 flex items-center justify-center gap-2"
           >
             {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
-            Iniciar Sesión
+            {t("auth.submit")}
           </button>
         </form>
 
@@ -110,7 +116,7 @@ function AuthContent() {
             className="w-full py-3.5 bg-gray-100 text-gray-400 rounded-xl font-medium flex items-center justify-center gap-2 opacity-50 cursor-not-allowed"
           >
             <Lock className="w-4 h-4" />
-            Ingresar con SSO Corporativo
+            {t("auth.sso")}
           </button>
         </div>
       </div>

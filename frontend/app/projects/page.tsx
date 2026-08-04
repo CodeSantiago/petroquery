@@ -20,6 +20,8 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import Link from "next/link";
+import { useLanguage } from "@/lib/i18n";
+import LanguageToggle from "@/app/components/LanguageToggle";
 
 interface Project {
   id: number;
@@ -39,6 +41,7 @@ interface Company {
 
 export default function ProjectsPage() {
   const router = useRouter();
+  const { t } = useLanguage();
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -148,19 +151,20 @@ export default function ProjectsPage() {
             </div>
             <div>
               <h1 className="text-xl font-bold text-gray-900">PetroQuery</h1>
-              <p className="text-xs text-gray-500">Selecciona un proyecto para continuar</p>
+              <p className="text-xs text-gray-500">{t("projects.selectProject")}</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
             {currentUser && (
               <span className="text-sm text-gray-600">{currentUser.username}</span>
             )}
+            <LanguageToggle />
             <button
               onClick={() => { apiLogout(); router.push("/auth"); }}
               className="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-600 hover:text-red-600 hover:bg-red-50 transition-colors text-sm"
             >
               <LogOut className="w-4 h-4" />
-              Salir
+              {t("nav.logout")}
             </button>
           </div>
         </div>
@@ -169,13 +173,13 @@ export default function ProjectsPage() {
       <main className="max-w-6xl mx-auto px-4 py-8">
         {/* Actions */}
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-semibold text-gray-900">Mis Proyectos</h2>
+          <h2 className="text-lg font-semibold text-gray-900">{t("projects.title")}</h2>
           <button
             onClick={() => setShowCreateModal(true)}
             className="flex items-center gap-2 px-4 py-2 bg-petro-blue text-white rounded-lg hover:bg-petro-dark transition-colors text-sm font-medium"
           >
             <Plus className="w-4 h-4" />
-            Nuevo Proyecto
+            {t("projects.createNew")}
           </button>
         </div>
 
@@ -183,13 +187,13 @@ export default function ProjectsPage() {
         {projects.length === 0 ? (
           <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
             <FolderOpen className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">Sin proyectos aún</h3>
-            <p className="text-gray-500 mb-6">Crea tu primer proyecto para empezar a cargar documentos técnicos.</p>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">{t("projects.empty")}</h3>
+            <p className="text-gray-500 mb-6">{t("projects.emptyDescription")}</p>
             <button
               onClick={() => setShowCreateModal(true)}
               className="px-4 py-2 bg-petro-blue text-white rounded-lg hover:bg-petro-dark transition-colors text-sm font-medium"
             >
-              Crear Proyecto
+              {t("projects.create")}
             </button>
           </div>
         ) : (
@@ -235,47 +239,47 @@ export default function ProjectsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
             <div className="px-5 py-4 border-b border-gray-200">
-              <h3 className="font-semibold text-gray-900">Nuevo Proyecto</h3>
+              <h3 className="font-semibold text-gray-900">{t("projects.createModalTitle")}</h3>
             </div>
             <div className="px-5 py-4 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nombre del Proyecto</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t("projects.nameLabel")}</label>
                 <input
                   value={newProject.name}
                   onChange={(e) => setNewProject({ ...newProject, name: e.target.value })}
-                  placeholder="Ej: Yacimiento Loma Campana"
+                  placeholder={t("projects.namePlaceholder")}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-petro-blue text-sm"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t("projects.description")}</label>
                 <textarea
                   value={newProject.description}
                   onChange={(e) => setNewProject({ ...newProject, description: e.target.value })}
-                  placeholder="Descripción del proyecto..."
+                  placeholder={t("projects.descriptionPlaceholder")}
                   rows={2}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-petro-blue text-sm resize-none"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Cuenca</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t("projects.basin")}</label>
                 <select
                   value={newProject.cuenca}
                   onChange={(e) => setNewProject({ ...newProject, cuenca: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-petro-blue text-sm"
                 >
-                  <option value="Vaca Muerta">Vaca Muerta</option>
-                  <option value="Neuquina">Neuquina</option>
-                  <option value="Golfo San Jorge">Golfo San Jorge</option>
-                  <option value="Cuyana">Cuyana</option>
+                  <option value="Vaca Muerta">{t("basin.vacaMuerta")}</option>
+                  <option value="Neuquina">{t("basin.neuquina")}</option>
+                  <option value="Golfo San Jorge">{t("basin.golfoSanJorge")}</option>
+                  <option value="Cuyana">{t("basin.cuyana")}</option>
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Ubicación</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t("projects.location")}</label>
                 <input
                   value={newProject.ubicacion}
                   onChange={(e) => setNewProject({ ...newProject, ubicacion: e.target.value })}
-                  placeholder="Ej: Neuquén, Argentina"
+                  placeholder={t("projects.locationPlaceholder")}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-petro-blue text-sm"
                 />
               </div>
@@ -285,13 +289,13 @@ export default function ProjectsPage() {
                 onClick={() => setShowCreateModal(false)}
                 className="px-4 py-2 text-gray-600 hover:bg-gray-50 rounded-lg text-sm"
               >
-                Cancelar
+                {t("projects.cancel")}
               </button>
               <button
                 onClick={handleCreateProject}
                 className="px-4 py-2 bg-petro-blue text-white rounded-lg hover:bg-petro-dark text-sm font-medium"
               >
-                Crear Proyecto
+                {t("projects.create")}
               </button>
             </div>
           </div>

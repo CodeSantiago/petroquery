@@ -14,6 +14,8 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import Link from "next/link";
+import { useLanguage } from "@/lib/i18n";
+import LanguageToggle from "@/app/components/LanguageToggle";
 
 interface Section {
   id: string;
@@ -23,6 +25,7 @@ interface Section {
 }
 
 export default function ManualPage() {
+  const { t } = useLanguage();
   const [activeSection, setActiveSection] = useState("intro");
 
   const sections: Section[] = [
@@ -303,8 +306,9 @@ export default function ManualPage() {
             className="flex items-center gap-2 px-4 py-2 rounded-lg bg-petro-blue text-white text-sm font-medium hover:bg-petro-dark transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
-            Volver al chat
+            {t("nav.chat")}
           </Link>
+          <LanguageToggle />
         </div>
       </header>
 
