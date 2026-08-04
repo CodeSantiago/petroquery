@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    name: Backend (Python 3.12)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
+    env:
+      APP_ENV: development
+      SECRET_KEY: ci-only-secret-key-not-for-production-use
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/petroquery_ci
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: petroquery_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt', 'requirements-dev.txt') }}
+      - name: Install core + dev dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+      - name: pip check
+        run: pip check
+      - name: compileall (app, tests, scripts)
+        run: |
+          python -m compileall -q app tests scripts
+      - name: pytest
+        run: |
+          pytest -q
+      - name: Verify subprocess worker module is importable
+        run: |
+          python -c "from app.services import ml_subprocess; print('ml_subprocess OK:', ml_subprocess.is_process_worker_enabled())"
+          python -c "import app.worker_entrypoint; print('worker_entrypoint OK')"
+      - name: e2e smoke against real PostgreSQL
+        run: |
+          # The CI service provides pgvector/pgvector:pg15 on localhost:5432.
+          # The e2e_smoke.py script runs HTTP-level checks against the
+          # live API; it does NOT exercise the ML stack, so the lighter
+          # ``requirements.txt`` install is sufficient.
+          pip install pgserver
+          python scripts/e2e_smoke_pgserver.py
+        env:
+          RATE_LIMIT_ENABLED: "false"
+
+  frontend:
+    name: Frontend (Next.js)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: npm ci
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:8000
+      - name: npm audit (high and above)
+        run: npm audit --omit=dev --audit-level=high || true
+
