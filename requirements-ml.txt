@@ -1,0 +1,50 @@
+# ============================================================================
+# PetroQuery — optional ML dependencies (RAG + PDF parsing)
+# ============================================================================
+# Install ON TOP of `requirements.txt` on hosts that need to:
+#   - compute embeddings (multilingual-e5-large, cross-encoder reranker)
+#   - parse uploaded PDFs (pdfplumber)
+#   - rerank retrieved chunks with a cross-encoder
+#
+# Usage:
+#   pip install -r requirements.txt
+#   pip install -r requirements-ml.txt
+#
+# Notes:
+#   * Wheels are CPU-only. PetroQuery's API server does not require a
+#     GPU. CUDA hosts can override by pinning their own torch wheel
+#     (e.g. `pip install torch==2.5.1 --index-url ...`).
+#   * On Windows + Python 3.12 the default PyPI index serves CPU wheels
+#     for torch >= 2.3, so no special `--index-url` is needed.
+#   * If you need to skip the ML stack entirely (CI, smoke tests, health
+#     endpoints), do NOT install this file. The application will boot
+#     and `/health` and the auth flow will work, but embedding-backed
+#     routes will return HTTP 503 with a clear explanation.
+# ============================================================================
+
+# --- Torch (CPU wheel is fetched from the default PyPI index) -------------
+# Pinned with a tight range so the same torch build is used across the
+# API server, the eval scripts, and the smoke tests.
+torch>=2.3.0,<2.7.0
+
+# --- Sentence-transformers / transformers / tokenizers / safetensors ------
+# These are the heavy ML packages. The minor-version range keeps the
+# stack reproducible without forcing a brand-new release on every CI run.
+sentence-transformers>=3.2.0,<4.0.0
+transformers>=4.46.0,<5.0.0
+tokenizers>=0.20.0,<1.0.0
+safetensors>=0.4.0,<1.0.0
+
+# --- PDF ingestion ---------------------------------------------------------
+pdfplumber>=0.11.0,<0.12.0
+
+# --- Numerics (already in requirements.txt; range kept here for clarity) -
+numpy>=2.0.0,<2.2.0
+scipy>=1.13.0,<1.18.0
+
+# --- Hugging Face cache utilities (already in requirements.txt) ----------
+huggingface_hub>=0.26.0,<2.0.0
+
+# --- Optional but recommended for the eval pipeline ----------------------
+# Only used by `scripts/evaluate_petroquery.py`; safe to skip in production.
+datasets>=2.20.0,<4.0.0
