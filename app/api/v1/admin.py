@@ -2,7 +2,7 @@ import logging
 import secrets
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,6 +12,7 @@ from app.database import get_db
 from app.models import Project, ProjectMember, QueryAudit, User
 from app.schemas.base_schemas import UserInvite, UserResponse
 from app.services.security import get_password_hash
+from app.services.ai_service import get_ai_service
 
 logger = logging.getLogger(__name__)
 
@@ -43,8 +44,8 @@ async def prewarm_model(
 async def list_audits(
     db: Annotated[AsyncSession, Depends(get_db)],
     admin: Annotated[User, Depends(require_admin)],
-    skip: int = 0,
-    limit: int = 100,
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=100, ge=1, le=1000),
 ) -> list[dict]:
     result = await db.execute(
         select(QueryAudit)

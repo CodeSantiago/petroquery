@@ -1,8 +1,12 @@
 from contextlib import asynccontextmanager
+from importlib.util import find_spec
 from typing import Annotated, AsyncGenerator
 
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,9 +19,9 @@ from app.api.v1.ingest import router as ingest_router
 from app.api.v1.projects import router as projects_router
 from app.config import get_settings
 from app.database import Base, engine, get_db
-from app.models import Document, User
+from app.models import Document, ProjectMember, User
+from app.rate_limit import limiter
 from app.schemas import DocumentResponse
-from app.services.ai_service import AIService, get_ai_service
 
 
 @asynccontextmanager
@@ -26,8 +30,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         await conn.run_sync(Base.metadata.create_all)
 
-    ai_service = get_ai_service()
-    await ai_service.get_embedding("warmup")
+    # Optional prewarm of the embedding model. The import is lazy so the
+    # process can boot on hosts that do not have the ML stack installed
+    # (CI runners, smoke tests, health-only deployments).
+    if settings.prewarm_model_on_startup:
+        try:
+            from app.services.ai_service import get_ai_service
+
+            await get_ai_service().get_embedding("warmup")
+        except Exception as exc:  # noqa: BLE001 — log and continue
+            print(f"[STARTUP] Prewarm skipped: {type(exc).__name__}: {exc}")
 
     print("✅ PetroQuery startup complete")
 
@@ -57,6 +69,13 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type", "X-Requested-With"],
 )
 
+# Rate limiting (slowapi). The Limiter instance lives in app.rate_limit
+# so the routers can decorate their endpoints with `@limiter.limit(...)`
+# without coupling to this module.
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
+
 app.include_router(chat_router, prefix="/api/v1")
 app.include_router(messages_router, prefix="/api/v1")
 app.include_router(ingest_router, prefix="/api/v1")
@@ -68,7 +87,22 @@ app.include_router(projects_router, prefix="/api/v1")
 
 @app.get("/health", status_code=status.HTTP_200_OK)
 async def health_check() -> dict[str, str]:
-    return {"status": "healthy", "system": "PetroQuery"}
+    """Public liveness probe.
+
+    Reports whether the optional ML stack is *installable*. We do not
+    import it (the import can pull in pyarrow/scikit-learn which crash
+    on some hosts) and we do not instantiate the model (1-2 GB RAM).
+    RAG endpoints will surface a detailed error if the model fails to
+    load on first use.
+    """
+    ml_status = (
+        "available" if find_spec("sentence_transformers") is not None else "unavailable"
+    )
+    return {
+        "status": "healthy",
+        "system": "PetroQuery",
+        "ml_status": ml_status,
+    }
 
 
 @app.delete("/documents/clear", status_code=status.HTTP_200_OK)
@@ -91,11 +125,11 @@ async def clear_documents(
         await db.execute(text("DELETE FROM documents"))
         await db.commit()
         return {"message": "All documents deleted successfully"}
-    except Exception as e:
+    except Exception:
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to clear documents: {str(e)}",
+            detail="Failed to clear documents",
         )
 
 
@@ -104,8 +138,13 @@ async def list_documents(
     db: Annotated[AsyncSession, Depends(get_db)],
     _user: Annotated[User, Depends(get_current_user)],
 ) -> list[DocumentResponse]:
-    result = await db.execute(select(Document).order_by(Document.id.desc()))
-    documents = result.scalars().all()
+    query = select(Document)
+    if not _user.is_superuser:
+        query = query.join(ProjectMember, ProjectMember.project_id == Document.project_id).where(
+            ProjectMember.user_id == _user.id
+        )
+    result = await db.execute(query.order_by(Document.id.desc()))
+    documents = result.scalars().unique().all()
     return [DocumentResponse.model_validate(doc) for doc in documents]
 
 
@@ -116,7 +155,12 @@ async def get_document(
     _user: Annotated[User, Depends(get_current_user)],
 ) -> DocumentResponse:
     try:
-        result = await db.execute(select(Document).where(Document.id == document_id))
+        query = select(Document).where(Document.id == document_id)
+        if not _user.is_superuser:
+            query = query.join(
+                ProjectMember, ProjectMember.project_id == Document.project_id
+            ).where(ProjectMember.user_id == _user.id)
+        result = await db.execute(query)
         document = result.scalar_one_or_none()
 
         if not document:
@@ -128,8 +172,8 @@ async def get_document(
         return DocumentResponse.model_validate(document)
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to retrieve document: {str(e)}",
+            detail="Failed to retrieve document",
         )

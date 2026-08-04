@@ -8,15 +8,14 @@ from sqlalchemy import select, func, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.auth import get_current_user
+from app.config import get_settings
 from app.database import get_db
 from app.models import Chat, Document, ProjectMember, User
 from app.schemas import OGTMetadata
 from app.services.ai_service import get_ai_service, AIService
-from app.services.document_processor import (
-    extract_text_and_tables_from_pdf,
-    create_chunks_from_page,
-    validate_and_merge_small_chunks,
-    generate_document_insights,
+from app.services.ml_subprocess import (
+    is_process_worker_enabled,
+    run_in_subprocess,
 )
 
 logger = logging.getLogger(__name__)
@@ -34,49 +33,111 @@ async def _process_pdf_background(
     filename: str,
     metadata: dict,
 ) -> None:
-    """Background task to process PDF and store chunks."""
+    """Background task to process PDF and store chunks.
+
+    Two execution modes are supported:
+
+    * **in-process** (default): the heavy work runs in this FastAPI
+      worker. This is the historical behaviour and is fine on Linux
+      hosts where the ML stack does not have native crash hazards.
+    * **subprocess** (opt-in via ``PETROQUERY_ML_WORKER=process``):
+      the PDF parsing and chunking run in a separate Python process so
+      that a Windows access violation inside ``pdfplumber``,
+      ``sentence-transformers`` or ``torch`` cannot take down the API.
+      The parent process keeps serving requests; the affected document
+      is marked as ``processing_status='failed'`` with the worker's
+      stderr surfaced in the server log.
+    """
     import asyncio
     from app.database import AsyncSessionLocal
     from app.services.ai_service import get_ai_service
+    from app.services.document_processor import (
+        extract_text_and_tables_from_pdf,
+        create_chunks_from_page,
+        validate_and_merge_small_chunks,
+        generate_document_insights,
+    )
 
     ai_service = get_ai_service()
     db = AsyncSessionLocal()
 
+    use_subprocess = is_process_worker_enabled()
+    all_chunks: list[dict] = []
+    failure_message: Optional[str] = None
+
     try:
-        pages = extract_text_and_tables_from_pdf(file_bytes)
-        total_pages = len(pages)
-
-        all_chunks = []
-        doc_metadata = {
-            "user_id": user_id,
-            **metadata,
-        }
-
-        for page_num, page_text, tables in pages:
-            page_chunks = create_chunks_from_page(
-                page_num=page_num,
-                page_text=page_text,
-                tables=tables,
-                source=filename,
-                doc_metadata=doc_metadata,
+        if use_subprocess:
+            logger.info(
+                "Background PDF processing for document %s: using subprocess worker",
+                document_id,
             )
-            all_chunks.extend(page_chunks)
+            worker_result = await run_in_subprocess(
+                {
+                    "type": "process_pdf",
+                    "pdf_hex": file_bytes.hex(),
+                    "filename": filename,
+                    "metadata": {"user_id": user_id, **(metadata or {})},
+                }
+            )
+            if not worker_result.get("ok"):
+                failure_message = worker_result.get("error", "ML worker failed")
+                stderr = worker_result.get("stderr") or ""
+                if stderr:
+                    logger.error(
+                        "Subprocess ML worker stderr for document %s:\n%s",
+                        document_id, stderr,
+                    )
+                raise RuntimeError(failure_message)
+            all_chunks = (worker_result.get("result") or {}).get("chunks") or []
+            total_pages = int(
+                (worker_result.get("result") or {}).get("page_count", 0)
+            ) or max((c.get("page", 0) for c in all_chunks), default=0)
 
-            # Update progress
-            progress = int((page_num / total_pages) * 100)
+            # Update progress in coarse steps (we don't have per-page
+            # granularity from the worker; mark as 50% after parsing).
             await db.execute(
                 update(Document)
                 .where(Document.id == document_id)
-                .values(processing_progress=progress)
+                .values(processing_progress=50)
             )
             await db.commit()
+        else:
+            pages = extract_text_and_tables_from_pdf(file_bytes)
+            total_pages = len(pages)
+            doc_metadata = {"user_id": user_id, **metadata}
+            for page_num, page_text, tables in pages:
+                page_chunks = create_chunks_from_page(
+                    page_num=page_num,
+                    page_text=page_text,
+                    tables=tables,
+                    source=filename,
+                    doc_metadata=doc_metadata,
+                )
+                all_chunks.extend(page_chunks)
+                progress = int((page_num / total_pages) * 50) if total_pages else 50
+                await db.execute(
+                    update(Document)
+                    .where(Document.id == document_id)
+                    .values(processing_progress=progress)
+                )
+                await db.commit()
 
         all_chunks = validate_and_merge_small_chunks(all_chunks)
         total_chunks = len(all_chunks)
 
-        # Create chunk documents
+        # Create chunk documents (embeddings are always computed in the
+        # API process; if the embedding model crashes the parent catches
+        # the failure and marks the document as failed below).
         for i, chunk in enumerate(all_chunks):
-            embedding = await ai_service.get_document_embedding(chunk["text"])
+            try:
+                embedding = await ai_service.get_document_embedding(chunk["text"])
+            except Exception as emb_exc:
+                logger.error(
+                    "Embedding failed for document %s chunk %s: %s",
+                    document_id, i, emb_exc,
+                )
+                failure_message = f"embedding failed: {emb_exc}"
+                raise
             chunk_doc = Document(
                 user_id=user_id,
                 chat_id=chat_id,
@@ -141,7 +202,10 @@ async def _process_pdf_background(
         logger.info(f"Background PDF processing completed for document {document_id}")
 
     except Exception as e:
-        logger.error(f"Background PDF processing failed for document {document_id}: {e}")
+        logger.error(
+            "Background PDF processing failed for document %s: %s",
+            document_id, e,
+        )
         await db.execute(
             update(Document)
             .where(Document.id == document_id)
@@ -162,28 +226,54 @@ async def ingest_pdf(
     title: Annotated[str, Form()] = "",
     og_metadata: Annotated[str, Form()] = "{}",
 ) -> dict:
-    if not file.filename.endswith(".pdf"):
-        logger.warning(f"Invalid file type: {file.filename}")
+    filename = file.filename or ""
+    if not filename.lower().endswith(".pdf"):
+        logger.warning("Invalid file type: %s", filename)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="File must be a PDF"
         )
 
     # Verify user is member of project
-    result = await db.execute(
-        select(ProjectMember).where(
-            ProjectMember.user_id == current_user.id,
-            ProjectMember.project_id == project_id,
+    membership = None
+    if not current_user.is_superuser:
+        result = await db.execute(
+            select(ProjectMember).where(
+                ProjectMember.user_id == current_user.id,
+                ProjectMember.project_id == project_id,
+            )
         )
-    )
-    membership = result.scalar_one_or_none()
+        membership = result.scalar_one_or_none()
     if not membership:
+        if current_user.is_superuser:
+            membership = ProjectMember(role="admin")
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No tienes acceso a este proyecto",
+            )
+
+    if membership.role not in {"admin", "editor"} and not current_user.is_superuser:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="No tienes acceso a este proyecto",
+            detail="Only project editors can ingest documents",
         )
 
-    doc_title = title.strip() if title.strip() else file.filename.replace(".pdf", "")
+    settings = get_settings()
+    max_bytes = settings.max_upload_size_mb * 1024 * 1024
+    file_bytes = await file.read(max_bytes + 1)
+    if len(file_bytes) > max_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"PDF exceeds the {settings.max_upload_size_mb} MB limit",
+        )
+    if not file_bytes.startswith(b"%PDF-"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File content is not a valid PDF",
+        )
+
+    doc_title = title.strip() if title.strip() else filename.rsplit(".", 1)[0]
     user_id = current_user.id
 
     # Parse metadata
@@ -205,7 +295,7 @@ async def ingest_pdf(
         project_id=project_id,
         title=doc_title,
         content="[Processing...]",
-        extra_data={"filename": file.filename, **metadata.model_dump()},
+        extra_data={"filename": filename, **metadata.model_dump()},
         cuenca=metadata.cuenca,
         tipo_documento=metadata.tipo_documento,
         tipo_equipo=metadata.tipo_equipo,
@@ -218,9 +308,6 @@ async def ingest_pdf(
     await db.flush()
     await db.commit()  # Commit so background task can see the document
 
-    # Read file bytes
-    file_bytes = await file.read()
-
     # Launch background processing
     background_tasks.add_task(
         _process_pdf_background,
@@ -230,7 +317,7 @@ async def ingest_pdf(
         chat_id=chat.id,
         project_id=project_id,
         doc_title=doc_title,
-        filename=file.filename,
+        filename=filename,
         metadata=metadata.model_dump(exclude_none=True),
     )
 
@@ -242,7 +329,7 @@ async def ingest_pdf(
         "chat_id": chat.id,
         "project_id": project_id,
         "title": doc_title,
-        "filename": file.filename,
+        "filename": filename,
         "message": "PDF is being processed in the background",
     }
 

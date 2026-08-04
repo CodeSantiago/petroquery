@@ -19,7 +19,7 @@ class UserCreate(UserBase):
 class UserInvite(BaseModel):
     email: EmailStr
     username: str = Field(..., min_length=3, max_length=100)
-    role: str = Field(default="operator", pattern="^(operator|engineer|admin)$")
+    role: str = Field(default="operator", pattern="^(operator|engineer)$")
     project_id: int
 
 

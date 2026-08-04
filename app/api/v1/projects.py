@@ -37,7 +37,16 @@ async def list_companies(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> list[Company]:
-    result = await db.execute(select(Company))
+    query = (
+        select(Company)
+        .join(Project, Project.company_id == Company.id)
+        .join(ProjectMember, ProjectMember.project_id == Project.id)
+        .where(ProjectMember.user_id == current_user.id)
+        .distinct()
+    )
+    if current_user.is_superuser:
+        query = select(Company)
+    result = await db.execute(query)
     return result.scalars().all()
 
 
@@ -98,12 +107,24 @@ async def create_project(
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> Project:
     company_id = data.company_id
+    if company_id:
+        company_query = select(Company).where(Company.id == company_id)
+        if not current_user.is_superuser:
+            company_query = company_query.join(
+                Project, Project.company_id == Company.id
+            ).join(
+                ProjectMember, ProjectMember.project_id == Project.id
+            ).where(ProjectMember.user_id == current_user.id)
+        company_result = await db.execute(company_query)
+        if company_result.scalar_one_or_none() is None:
+            raise HTTPException(status_code=404, detail="Company not found")
     if not company_id:
-        # Use first available company or create default
-        result = await db.execute(select(Company).limit(1))
+        # Never attach a project to another tenant's first company.
+        company_name = f"{current_user.username} Workspace"
+        result = await db.execute(select(Company).where(Company.name == company_name))
         company = result.scalar_one_or_none()
         if not company:
-            company = Company(name="Default Company")
+            company = Company(name=company_name)
             db.add(company)
             await db.flush()
         company_id = company.id
@@ -165,6 +186,14 @@ async def invite_member(
 ) -> ProjectMember:
     await _require_project_admin(project_id, current_user, db)
 
+    if data.role == "admin":
+        project = await _require_project_member(project_id, current_user, db)
+        if project.created_by != current_user.id and not current_user.is_superuser:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only the project creator can grant admin membership",
+            )
+
     # Verify target user exists
     user_result = await db.execute(select(User).where(User.id == data.user_id))
     target_user = user_result.scalar_one_or_none()
@@ -212,6 +241,25 @@ async def remove_member(
     membership = result.scalar_one_or_none()
     if not membership:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Member not found")
+
+    if membership.user_id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Project administrators cannot remove themselves",
+        )
+
+    if membership.role == "admin":
+        admin_result = await db.execute(
+            select(ProjectMember).where(
+                ProjectMember.project_id == project_id,
+                ProjectMember.role == "admin",
+            )
+        )
+        if len(admin_result.scalars().all()) <= 1:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="A project must retain at least one administrator",
+            )
 
     await db.delete(membership)
     await db.commit()

@@ -18,7 +18,7 @@ async def assert_project_access(
     When ``project_id`` is ``None`` this is a no-op: the request simply
     doesn't restrict by project.
     """
-    if project_id is None:
+    if project_id is None or current_user.is_superuser:
         return
 
     result = await db.execute(
