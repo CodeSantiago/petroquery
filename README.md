@@ -60,6 +60,32 @@ the way a real industrial RAG system has to be:
   the prompt forces a non-empty `advertencia_seguridad` field.
 - **Query audit trail** persisted for every interaction.
 
+## Security posture
+
+PetroQuery is built as if it were going to be deployed, even though it is
+a portfolio project. The default posture that ships in this repo:
+
+- **Multi-tenant isolation** — documents, projects, companies and audits
+  are scoped to project membership; `GET /documents` and per-document
+  reads are filtered server-side. No cross-tenant data leak through
+  sequential IDs.
+- **Authorization everywhere** — project members, project admins,
+  superusers and the global `admin` invite role are enforced on the
+  backend; the client only renders what the API already authorizes.
+- **Upload hardening** — PDF ingestion validates the magic bytes, caps
+  size (`MAX_UPLOAD_SIZE_MB`, default 25) and requires an
+  `admin`/`editor` project role.
+- **Auth hardening** — Argon2id with production-grade parameters, JWT
+  expiry, HttpOnly `pq_access_token` cookie (drop-in replacement for
+  `localStorage`) and rate-limited `/auth/login` and `/auth/register`
+  (`slowapi`; point `RATE_LIMIT_STORAGE_URI` at Redis for multi-worker
+  enforcement).
+- **No secrets in the repo** — `docker-compose.yml` reads credentials
+  from the environment, `.env` is git-ignored, and the production
+  validators refuse placeholder secrets.
+- **Fail-safe error responses** — internal exception detail is never
+  echoed to clients.
+
 ## Architecture at a glance
 
 ```
@@ -128,14 +154,107 @@ cp .env.example .env
 docker compose up -d db
 
 # 3. Install + initialize
+#    Linux / macOS:
 python -m venv venv && source venv/bin/activate
-pip install -r requirements.txt -r requirements-dev.txt
+pip install -r requirements.txt
+#    Windows + Python 3.12 (use the pinned set that does NOT trip the
+#    access violation in pyarrow / torch on Windows):
+python -m venv venv
+.\venv\Scripts\activate
+pip install -r requirements.txt -r requirements-windows.txt
+#    On either platform, also install dev deps for tests / smoke:
+pip install -r requirements-dev.txt
 python scripts/init_petroquery_db.py     # see warning below
 
 # 4. Run
 uvicorn app.main:app --reload            # API on :8000
 cd frontend && npm run dev               # UI on :3000
 ```
+
+### Install strategy & ML stack
+
+The dependencies are split across four files so each host installs only
+what it can actually use:
+
+| File | Purpose | When to install |
+|------|---------|-----------------|
+| `requirements.txt` | Cross-platform CPU-only safe deps. **No** `torch`, **no** CUDA. | Every host (CI, dev, prod). |
+| `requirements-ml.txt` | Adds `torch`, `sentence-transformers`, `pdfplumber`. | Linux / macOS hosts that serve real RAG. |
+| `requirements-windows.txt` | Pinned set used by the team on **Windows + Python 3.12**. Same packages as `-ml`, but `pyarrow` and `torch` are pinned to a known-good wheel to avoid the native access violation seen with auto-resolved versions. | **Windows** dev machines that serve real RAG. |
+| `requirements-dev.txt` | `pytest`, `pytest-asyncio`. | Anyone running the test suite. |
+
+The `app/services/ai_service.py` module only imports `groq` eagerly; the
+heavy ML stack (`instructor`, `sentence-transformers`, `pdfplumber`,
+`pandas`, `pyarrow`) is loaded on first use. The API process can boot
+on a host that has only `requirements.txt` — it will answer `/health`,
+the auth flow, and the CRUD endpoints, and the ML routes will return
+HTTP 503 with a clear remediation message pointing at
+`requirements-ml.txt` (or `requirements-windows.txt` on Windows).
+
+### Subprocess isolation for the ML worker
+
+On Windows, native crashes inside the ML stack (`torch`, `pyarrow` via
+`pandas`, `sentence-transformers`) cannot be caught by Python
+`try/except`: a Windows access violation in a thread of the API
+process takes the whole process down. To protect the API from that
+class of failure, the PDF-processing path can be moved to a separate
+Python process:
+
+```bash
+export PETROQUERY_ML_WORKER=process
+export PETROQUERY_ML_WORKER_TIMEOUT=600     # seconds, optional
+uvicorn app.main:app --reload
+```
+
+The subprocess is launched by `app/services/ml_subprocess.py` and the
+worker code lives in `app/worker_entrypoint.py`. A native crash inside
+the worker kills only that subprocess; the parent API keeps serving
+requests and the affected document is marked as
+`processing_status='failed'` with the worker stderr surfaced in the
+server log. The mode is opt-in and defaults to in-process so existing
+deployments and tests are not affected.
+
+### Session & authentication
+
+The auth surface supports **both** an `Authorization: Bearer` header
+and an HttpOnly `pq_access_token` cookie so the SPA can drop
+`localStorage` when it wants to. The cookie is set on `/auth/login`
+(when `AUTH_COOKIE_ENABLED=true`, the default), carries the same JWT
+as the JSON response, and is cleared by `/auth/logout`. The
+`AUTH_COOKIE_SECURE` flag defaults to `false` so the local dev server
+(plain HTTP) keeps working; flip it to `true` (or run with
+`APP_ENV=production`) for HTTPS deployments.
+
+The same JWT serves both channels; the cookie is the migration path
+away from `localStorage`-based session storage without breaking any
+existing client. Future hardening (refresh-token rotation,
+Redis-backed blocklist for forced logout, CSRF tokens for the
+cookie-only path) is tracked separately and is intentionally not
+included here so this release stays focused on the verified
+end-to-end surface.
+
+## End-to-end smoke
+
+`scripts/e2e_smoke.py` exercises the public HTTP surface against a
+running API: health, register, login, me, project creation, project
+list, document list, and a PDF upload (the upload is expected to
+return 202 with the background task scheduled).
+
+```bash
+# Against the docker compose DB (when Docker is available):
+docker compose up -d db
+uvicorn app.main:app &
+python scripts/e2e_smoke.py
+
+# Or, on hosts without Docker, against a portable pgserver binary:
+pip install pgserver
+python scripts/e2e_smoke_pgserver.py
+```
+
+The `e2e_smoke_pgserver.py` harness is a thin wrapper that starts a
+real PostgreSQL on a free port, exports `DATABASE_URL` for the API,
+runs the existing `scripts/e2e_smoke.py`, and cleans up. It does not
+touch any existing Docker volumes.
 
 Open http://localhost:3000 for the chat UI and
 http://localhost:8000/docs for the interactive OpenAPI.
