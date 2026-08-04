@@ -9,10 +9,46 @@ import json
 import logging
 from typing import Any
 
-import pdfplumber
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-
 logger = logging.getLogger(__name__)
+
+
+def _load_pdfplumber():
+    """Lazy import of ``pdfplumber`` so the API can boot without the ML stack.
+
+    Returns the module or raises a clear :class:`RuntimeError` pointing
+    the operator to ``requirements-ml.txt``.
+    """
+    try:
+        import pdfplumber
+    except Exception as exc:  # ImportError or native load failure
+        raise RuntimeError(
+            "PDF ingestion requires the optional ML stack. Install it with "
+            "`pip install -r requirements-ml.txt` and retry. Root cause: "
+            f"{type(exc).__name__}: {exc}"
+        ) from exc
+    return pdfplumber
+
+
+def _load_text_splitter():
+    """Lazy import of :class:`RecursiveCharacterTextSplitter`.
+
+    ``langchain_text_splitters`` pulls in a heavy native stack
+    (``pandas`` → ``sklearn`` → ``pyarrow``) at import time. On Windows
+    + Python 3.12 with a stale ``pyarrow`` wheel the import can crash
+    the process with an access violation. We only need the splitter
+    when a PDF is actually being chunked, so we defer the import to
+    that point.
+    """
+    try:
+        from langchain_text_splitters import RecursiveCharacterTextSplitter
+    except Exception as exc:  # ImportError or native load failure
+        raise RuntimeError(
+            "Text chunking requires the langchain_text_splitters package. "
+            "Install the optional ML stack with `pip install -r "
+            "requirements-ml.txt` and retry. Root cause: "
+            f"{type(exc).__name__}: {exc}"
+        ) from exc
+    return RecursiveCharacterTextSplitter
 
 OG_SEPARATORS = [
     "\nCAPÍTULO ",
@@ -36,6 +72,14 @@ def extract_text_and_tables_from_pdf(file_bytes: bytes) -> list[tuple[int, str, 
     where tables is a list of dicts with keys: rows, is_complex, row_count, col_count
     """
     pages = []
+    try:
+        pdfplumber = _load_pdfplumber()
+    except RuntimeError as exc:
+        # Surface a clear, actionable error so the API can return 503
+        # instead of crashing the worker with a native access violation.
+        logger.error("PDF ingestion unavailable: %s", exc)
+        raise
+
     try:
         file_stream = io.BytesIO(file_bytes)
         with pdfplumber.open(file_stream) as pdf:
@@ -157,6 +201,7 @@ def create_chunks_from_page(
 
     # Process regular text
     if page_text and len(page_text) > 20:
+        RecursiveCharacterTextSplitter = _load_text_splitter()
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=1200,
             chunk_overlap=300,

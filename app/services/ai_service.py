@@ -1,13 +1,30 @@
-from typing import Optional
+"""Shared AI service used by the chat pipeline.
+
+The service is intentionally split in two layers:
+
+* **Always available** (Groq LLM client, structured generation, number
+  validation helpers, prompt-injection guard, HSE protocol) — these are
+  pure-Python and do not require the optional ML stack.
+* **Lazily loaded** (sentence-transformers embedding model, cross-encoder
+  reranker) — the heavy ML packages are only imported the first time an
+  embedding/rerank call is made. If the ML stack is not installed the
+  service still boots; calls to ``get_*_embedding`` or ``rerank_chunks``
+  raise :class:`MLRuntimeUnavailable` with a clear remediation message
+  instead of crashing the process.
+"""
+from __future__ import annotations
 
 import asyncio
+import logging
+from typing import Any, Optional
 
-import groq
-from groq import RateLimitError as GroqRateLimitError
-from sentence_transformers import SentenceTransformer
-from sentence_transformers import CrossEncoder
-import instructor
-
+# NOTE: ``groq`` and ``instructor`` are imported lazily so the API process
+# can boot on hosts that do not have the ML stack installed (CI runners,
+# smoke tests, health-only deployments, or any host that only exercises
+# the auth/CRUD surface). Native crashes on Windows during the import
+# of ``instructor`` (which pulls in pandas -> pyarrow) used to kill the
+# whole process at startup; lazy imports keep the heavy stack out of the
+# request path until an actual RAG call needs it.
 from app.config import get_settings
 from app.prompts.system_prompts import (
     SYSTEM_PROMPT_OG,
@@ -22,15 +39,29 @@ from app.services.pii_masker import PIIMasker
 from app.services.number_validator import extract_technical_numbers, validate_numbers_against_chunks
 from app.services.hse_protocol import is_hse_query, hse_hard_stop
 
+logger = logging.getLogger(__name__)
+
 MAX_RETRIES = 3
 RETRY_BASE_DELAY = 2.0
 
 
+class MLRuntimeUnavailable(RuntimeError):
+    """Raised when an AI call needs the optional ML stack and it is missing.
+
+    The error message always points to ``requirements-ml.txt`` so the
+    operator can fix the host without reading the stack trace.
+    """
+
+
 async def _retry_on_rate_limit(coro, max_retries: int = MAX_RETRIES):
+    # Imported lazily so the API process can boot on hosts that do not
+    # have the ``groq`` SDK installed (CI, health-only deployments).
+    from groq import RateLimitError as GroqRateLimitError
+
     for attempt in range(max_retries):
         try:
             return await coro()
-        except GroqRateLimitError as e:
+        except GroqRateLimitError:
             if attempt == max_retries - 1:
                 raise
             delay = RETRY_BASE_DELAY * (2 ** attempt)
@@ -39,52 +70,193 @@ async def _retry_on_rate_limit(coro, max_retries: int = MAX_RETRIES):
 
 
 class AIService:
+    """Lazy, fault-tolerant AI service.
+
+    Heavy ML models (sentence-transformers, cross-encoders) are loaded
+    on first use. If the import fails — typically because
+    ``requirements-ml.txt`` has not been installed on this host — the
+    failure is recorded on the instance and surfaced as a clear
+    :class:`MLRuntimeUnavailable` error so the API can answer with an
+    HTTP 503 instead of crashing with a native access violation.
+    """
+
     def __init__(self) -> None:
         settings = get_settings()
-        self._embedding_model: Optional[SentenceTransformer] = None
-        self._cross_encoder: Optional[CrossEncoder] = None
+        # The Groq client is the only eagerly constructed collaborator.
+        # ``groq`` is a small pure-Python HTTP client and does not pull
+        # in any heavy native stack at import time.
+        import groq
         self._groq_client = groq.AsyncGroq(api_key=settings.groq_api_key)
-        self._instructor_client = instructor.from_groq(self._groq_client)
 
-    @property
-    def embedding_model(self) -> SentenceTransformer:
-        if self._embedding_model is None:
+        # ``instructor`` is lazy: it transitively imports pandas /
+        # pyarrow which can crash the process on Windows hosts that do
+        # not have a working pyarrow wheel. The client is created the
+        # first time ``ask_og_structured`` is called and the failure is
+        # recorded on the instance so the second call surfaces the same
+        # 503 with a clear remediation message.
+        self._instructor_client: Optional[Any] = None
+        self._instructor_error: Optional[str] = None
+
+        # Heavy ML collaborators — populated on first use.
+        self._embedding_model: Optional[Any] = None
+        self._cross_encoder: Optional[Any] = None
+        self._embedding_error: Optional[str] = None
+        self._cross_encoder_error: Optional[str] = None
+
+    # ------------------------------------------------------------------
+    # ML loading
+    # ------------------------------------------------------------------
+    def _load_instructor_client(self) -> Any:
+        """Return the instructor-wrapped Groq client, building it on first use.
+
+        Raises :class:`MLRuntimeUnavailable` with a clear remediation
+        message when the optional ML stack is not installed. The failure
+        is cached on the instance so subsequent calls return the same
+        503 instead of re-importing the broken stack.
+        """
+        if self._instructor_client is not None:
+            return self._instructor_client
+        if self._instructor_error is not None:
+            raise MLRuntimeUnavailable(self._instructor_error)
+        try:
+            import instructor
+            self._instructor_client = instructor.from_groq(self._groq_client)
+            return self._instructor_client
+        except Exception as exc:  # ImportError or native load failure
+            self._instructor_error = (
+                "instructor unavailable. Structured generation requires "
+                "the optional ML stack. Install it with "
+                "`pip install -r requirements-ml.txt` (or "
+                "`pip install -r requirements-windows.txt` on Windows). "
+                f"Root cause: {type(exc).__name__}: {exc}"
+            )
+            logger.error(self._instructor_error)
+            raise MLRuntimeUnavailable(self._instructor_error) from exc
+
+    def _load_embedding_model(self) -> Any:
+        """Import and instantiate the embedding model.
+
+        Returns the cached model on subsequent calls. Raises
+        :class:`MLRuntimeUnavailable` with a clear remediation message
+        when the ML stack is not installed.
+        """
+        if self._embedding_model is not None:
+            return self._embedding_model
+        if self._embedding_error is not None:
+            raise MLRuntimeUnavailable(self._embedding_error)
+        try:
+            from sentence_transformers import SentenceTransformer
+        except Exception as exc:  # ImportError or native load failure
+            self._embedding_error = (
+                "Embedding model unavailable: sentence-transformers could "
+                "not be imported. Install the optional ML stack with "
+                "`pip install -r requirements-ml.txt`. Root cause: "
+                f"{type(exc).__name__}: {exc}"
+            )
+            logger.error(self._embedding_error)
+            raise MLRuntimeUnavailable(self._embedding_error) from exc
+
+        try:
             settings = get_settings()
             self._embedding_model = SentenceTransformer(
                 "intfloat/multilingual-e5-large",
                 use_auth_token=settings.huggingface_token or None,
             )
-        return self._embedding_model
+            return self._embedding_model
+        except Exception as exc:
+            self._embedding_error = (
+                "Embedding model failed to load (corrupt cache, OOM, or "
+                "missing native deps). Try `pip install -r requirements-ml.txt` "
+                "and clear the Hugging Face cache. Root cause: "
+                f"{type(exc).__name__}: {exc}"
+            )
+            logger.error(self._embedding_error)
+            raise MLRuntimeUnavailable(self._embedding_error) from exc
 
-    @property
-    def cross_encoder(self) -> CrossEncoder:
-        if self._cross_encoder is None:
+    def _load_cross_encoder(self) -> Any:
+        """Import and instantiate the cross-encoder reranker."""
+        if self._cross_encoder is not None:
+            return self._cross_encoder
+        if self._cross_encoder_error is not None:
+            raise MLRuntimeUnavailable(self._cross_encoder_error)
+        try:
+            from sentence_transformers import CrossEncoder
+        except Exception as exc:
+            self._cross_encoder_error = (
+                "Cross-encoder unavailable: sentence-transformers could not "
+                "be imported. Install the optional ML stack with "
+                "`pip install -r requirements-ml.txt`. Root cause: "
+                f"{type(exc).__name__}: {exc}"
+            )
+            logger.error(self._cross_encoder_error)
+            raise MLRuntimeUnavailable(self._cross_encoder_error) from exc
+
+        try:
             settings = get_settings()
             import huggingface_hub
             hf_token = settings.huggingface_token or None
             if hf_token:
                 huggingface_hub.login(hf_token)
             self._cross_encoder = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
-        return self._cross_encoder
+            return self._cross_encoder
+        except Exception as exc:
+            self._cross_encoder_error = (
+                "Cross-encoder failed to load. Install the optional ML stack "
+                "with `pip install -r requirements-ml.txt` and clear the "
+                "Hugging Face cache. Root cause: "
+                f"{type(exc).__name__}: {exc}"
+            )
+            logger.error(self._cross_encoder_error)
+            raise MLRuntimeUnavailable(self._cross_encoder_error) from exc
+
+    @property
+    def embedding_model(self) -> Any:
+        return self._load_embedding_model()
+
+    @property
+    def cross_encoder(self) -> Any:
+        return self._load_cross_encoder()
 
     def prewarm(self) -> None:
-        """Pre-load the embedding model to avoid cold-start delays during evaluation."""
-        print("[WARMUP] Pre-cargando modelo E5 (primera carga puede tomar 30-60s)...")
-        _ = self.embedding_model
-        print("[WARMUP] Modelo E5 cargado.")
+        """Pre-load the embedding model to avoid cold-start delays during evaluation.
+
+        When the ML stack is missing, this logs a warning and returns
+        instead of crashing the process.
+        """
+        try:
+            print("[WARMUP] Pre-cargando modelo E5 (primera carga puede tomar 30-60s)...")
+            _ = self.embedding_model
+            print("[WARMUP] Modelo E5 cargado.")
+        except MLRuntimeUnavailable as exc:
+            print(f"[WARMUP] Modelo no disponible, prewarm omitido: {exc}")
 
     # ------------------------------------------------------------------
     # Embeddings (E5 with prefixes)
     # ------------------------------------------------------------------
     async def get_document_embedding(self, text: str) -> list[float]:
+        model = self._load_embedding_model()
         prefixed = f"passage: {text}"
-        embedding = self.embedding_model.encode(prefixed, normalize_embeddings=True)
-        return embedding.tolist()
+        # sentence-transformers .encode is a blocking call; run it in a
+        # worker thread so we do not stall the event loop.
+        #
+        # NOTE: the ``normalize_embeddings`` flag MUST be passed as a
+        # keyword argument. The encode() signature in sentence-transformers
+        # >= 5.0 is ``encode(inputs, prompt_name=None, prompt=None, ...)``,
+        # so a positional dict would be interpreted as ``prompt_name`` and
+        # raise ``TypeError: unhashable type: 'dict'`` from inside the
+        # model's ``_resolve_prompt`` helper.
+        embedding = await asyncio.to_thread(
+            model.encode, [prefixed], normalize_embeddings=True
+        )
+        return embedding[0].tolist()
 
     async def get_query_embedding(self, text: str) -> list[float]:
+        model = self._load_embedding_model()
         prefixed = f"query: {text}"
-        embedding = self.embedding_model.encode(prefixed, normalize_embeddings=True)
-        return embedding.tolist()
+        embedding = await asyncio.to_thread(
+            model.encode, [prefixed], normalize_embeddings=True
+        )
+        return embedding[0].tolist()
 
     # Backward-compatible alias
     async def get_embedding(self, text: str) -> list[float]:
@@ -99,8 +271,9 @@ class AIService:
         if not chunks:
             return []
 
+        model = self._load_cross_encoder()
         pairs = [(query, chunk.get("content", chunk.get("text", ""))) for chunk in chunks]
-        scores = self.cross_encoder.predict(pairs)
+        scores = await asyncio.to_thread(model.predict, pairs)
 
         for i, chunk in enumerate(chunks):
             chunk["rerank_score"] = float(scores[i])
@@ -179,7 +352,8 @@ class AIService:
         })
 
         async def _call_groq():
-            return await self._instructor_client.create(
+            client = self._load_instructor_client()
+            return await client.create(
                 response_model=OGTechnicalAnswer,
                 messages=messages,
                 model="llama-3.3-70b-versatile",
@@ -447,3 +621,17 @@ def get_ai_service() -> AIService:
     if _ai_service is None:
         _ai_service = AIService()
     return _ai_service
+
+
+def reset_ai_service() -> None:
+    """Drop the cached service. Intended for tests that swap the API key."""
+    global _ai_service
+    _ai_service = None
+
+
+__all__ = [
+    "AIService",
+    "MLRuntimeUnavailable",
+    "get_ai_service",
+    "reset_ai_service",
+]
