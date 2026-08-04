@@ -1,5 +1,7 @@
 # Python
 venv/
+venv312/
+venv*/
 __pycache__/
 .env
 *.pyc
@@ -18,6 +20,7 @@ build/
 htmlcov/
 .env.local
 .env.*.local
+.env.production
 
 # Frontend
 node_modules/
@@ -59,7 +62,11 @@ notas.txt
 plan_petroquery.txt
 PETROQUERY_RESUMEN_PORTFOLIO.txt
 
+# Local tooling
+.atl/
+
 # Logs
 logs/
 *.log
 next-development.log
+backend_log.txt
